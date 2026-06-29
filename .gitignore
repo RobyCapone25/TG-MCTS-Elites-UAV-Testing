@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.env
+.venv/
+venv/
+
+# Local simulation outputs
+results/
+logs/
+generated_tests/
+*.ulg
+*.bag
+*.log
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.bak
+random_generator_backup_*.py
+
+# Local helper files
+.env.save
+GITHUB_UPLOAD_COMMANDS.sh
+random_generator_backup_*.py
+random_generator_before_tg_mcts_elites.py
+tg_mcts_elites_full_uml.mmd
+
+# Python/cache
+__pycache__/
+*.pyc
+
+# Heavy simulation outputs
+results/
+logs/
+generated_tests/
+*.ulg
