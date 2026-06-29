@@ -14,6 +14,45 @@ The generator combines:
 
 ---
 
+## System Requirements
+
+A complete setup guide is available in:
+
+```text
+docs/SETUP.md
+```
+
+The project was developed for the following setup:
+
+| Component | Version / Requirement |
+|---|---|
+| Operating system | Linux, tested on Ubuntu |
+| Python | Python 3.10 |
+| Environment manager | Conda |
+| Docker | Required |
+| Aerialist | Docker image `skhatiri/aerialist:2.0` |
+| PX4 / Gazebo | Provided inside the Aerialist Docker container |
+| Simulation mode | Docker-based execution |
+
+For the standard workflow, PX4, Gazebo, and ROS do not need to be installed manually on the host machine. They are executed through the Aerialist Docker container.
+
+Minimal setup:
+
+```bash
+conda env create -f environment.yml
+conda activate uav
+cp .env.example .env
+docker pull skhatiri/aerialist:2.0
+```
+
+Then run a quick test:
+
+```bash
+TG_FORCE_NEW=1 python cli.py generate case_studies/mission1.yaml 1
+```
+
+---
+
 ## Project Goal
 
 The objective is to automatically generate valid obstacle configurations that expose weaknesses in PX4-Avoidance.
@@ -41,7 +80,9 @@ The search tries to minimize this value while keeping the test case valid.
 .
 ├── README.md
 ├── Dockerfile
+├── environment.yml
 ├── requirements.txt
+├── .env.example
 ├── cli.py
 ├── src/
 │   ├── __init__.py
@@ -59,6 +100,7 @@ The search tries to minimize this value while keeping the test case valid.
 │   ├── mission2.plan
 │   └── mission3.plan
 └── docs/
+    ├── SETUP.md
     └── uml/
         ├── class_diagram.mmd
         ├── execution_flow.mmd
@@ -279,30 +321,33 @@ mission3: 100 simulations
 
 ## Installation
 
-Activate the environment used for the project:
-
-```bash
-conda activate uav
-```
-
-Go to the project folder:
-
-```bash
-cd /home/roby/Projects/UAV-Testing-Competition/snippets
-```
-
-Install missing Python dependencies if needed:
-
-```bash
-python -m pip install -r requirements.txt
-python -m pip install matplotlib
-```
-
-The simulator is executed through Docker using the Aerialist image:
+The recommended setup is documented in detail in:
 
 ```text
-skhatiri/aerialist:2.0
+docs/SETUP.md
 ```
+
+Minimal installation:
+
+```bash
+conda env create -f environment.yml
+conda activate uav
+cp .env.example .env
+docker pull skhatiri/aerialist:2.0
+```
+
+The `.env` file configures the simulation backend. The default configuration uses Docker:
+
+```text
+AGENT=docker
+SIMULATOR=ros
+ROBOT=px4_ros
+HEADLESS=True
+DOCKER_IMG=skhatiri/aerialist:2.0
+DOCKER_TIMEOUT=1000
+```
+
+PX4/Gazebo are handled inside the Aerialist Docker image.
 
 ---
 
@@ -311,16 +356,16 @@ skhatiri/aerialist:2.0
 Run a small test first:
 
 ```bash
-TG_FORCE_NEW=1 python cli.py generate case_studies/mission1.yaml 2
+TG_FORCE_NEW=1 python cli.py generate case_studies/mission1.yaml 1
 ```
 
 A successful run prints something similar to:
 
 ```text
 Rule-compliant Robust TG-MCTS-Elites UAV Test Generator
-Simulation 1/2
-Simulation 2/2
-2 test cases generated
+Simulation 1/1
+minimum_distance: ...
+1 test cases generated
 ```
 
 The output ranking should contain cells with five values, for example:
@@ -374,7 +419,7 @@ results.jsonl
 history.jsonl
 ```
 
-If the PC or simulator crashes, resume the interrupted mission without `TG_FORCE_NEW=1`.
+If the PC, Docker container, or simulator crashes, resume the interrupted mission without `TG_FORCE_NEW=1`.
 
 Example:
 
@@ -684,9 +729,10 @@ generated_tests/
 *.ulg
 __pycache__/
 random_generator_backup_*.py
+.env
 ```
 
-These files are large, generated locally, or only useful for debugging.
+These files are large, generated locally, private, or only useful for debugging.
 
 ---
 
