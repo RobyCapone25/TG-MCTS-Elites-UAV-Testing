@@ -1,0 +1,79 @@
+classDiagram
+    class RandomGenerator {
+        +generate(budget)
+        +setup_run()
+        +resume_run()
+        +tree_policy()
+        +expand_node()
+        +simulate_candidate()
+        +validate_candidate()
+        +update_archive()
+        +save_outputs()
+    }
+
+    class MCTSNode {
+        +candidate
+        +parent
+        +children
+        +visits
+        +total_reward
+        +mean_reward()
+        +ucb_score()
+    }
+
+    class EvalResult {
+        +min_distance
+        +reward
+        +official_point
+        +failure_type
+        +mission_status
+        +cell
+        +obstacles
+    }
+
+    class SavedEvaluatedTestCase {
+        +test
+        +result
+        +yaml_file
+        +ulg_file
+        +plot_file
+    }
+
+    class TestCase {
+        +obstacles
+        +mission
+        +execute()
+        +save_yaml()
+    }
+
+    class AerialistPX4 {
+        +run_simulation()
+        +extract_trajectory()
+        +compute_min_distance()
+    }
+
+    class MAPElitesArchive {
+        +cell_descriptor()
+        +insert_if_elite()
+        +best_per_cell
+    }
+
+    class CheckpointManager {
+        +pending_candidate_json
+        +results_jsonl
+        +history_jsonl
+        +system_errors_csv
+        +invalid_candidates_csv
+        +run_state_json
+    }
+
+    RandomGenerator --> MCTSNode
+    RandomGenerator --> EvalResult
+    RandomGenerator --> SavedEvaluatedTestCase
+    RandomGenerator --> MAPElitesArchive
+    RandomGenerator --> CheckpointManager
+    RandomGenerator --> TestCase
+
+    TestCase --> AerialistPX4
+    SavedEvaluatedTestCase --> TestCase
+    SavedEvaluatedTestCase --> EvalResult

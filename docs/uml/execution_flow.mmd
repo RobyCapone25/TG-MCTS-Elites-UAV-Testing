@@ -1,0 +1,48 @@
+flowchart TD
+    A([Start generator]) --> B[Load mission YAML]
+    B --> C{TG_FORCE_NEW = 1?}
+
+    C -->|Yes| D[Create fresh run folder]
+    C -->|No| E{Incomplete checkpoint exists?}
+
+    E -->|Yes| F[Resume previous run]
+    E -->|No| D
+
+    D --> G[Initialize MCTS root and MAP-Elites archive]
+    F --> H[Load previous results, history and archive]
+
+    G --> I{Budget reached?}
+    H --> I
+
+    I -->|Yes| Z[Save final outputs]
+    I -->|No| J[Select node with UCB]
+
+    J --> K[Generate search action]
+    K --> L[Create or mutate obstacle configuration]
+
+    L --> M{Rule compliant?}
+    M -->|No| N[Save invalid candidate]
+    N --> I
+
+    M -->|Yes| O[Save pending_candidate.json]
+    O --> P[Run PX4-Avoidance simulation through Aerialist and Docker]
+
+    P --> Q{System error?}
+    Q -->|Yes| R{Retries left?}
+    R -->|Yes| P
+    R -->|No| S[Save system error]
+    S --> I
+
+    Q -->|No| T[Extract trajectory and minimum distance]
+    T --> U[Check mission completion]
+    U --> V[Classify failure type]
+    V --> W[Compute reward]
+    W --> X[Update MCTS statistics]
+    X --> Y[Update MAP-Elites archive and checkpoint]
+    Y --> I
+
+    Z --> Z1[history.csv]
+    Z --> Z2[progress_final.png]
+    Z --> Z3[tree_final.png]
+    Z --> Z4[generated_tests/]
+    Z4 --> END([End])

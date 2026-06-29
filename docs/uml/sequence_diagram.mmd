@@ -1,0 +1,56 @@
+sequenceDiagram
+    actor User
+    participant CLI as cli.py
+    participant RG as RandomGenerator
+    participant MCTS as MCTS Tree
+    participant VAL as Rule Validator
+    participant SIM as Aerialist/PX4 Docker
+    participant ARCH as MAP-Elites Archive
+    participant CKPT as Checkpoint Files
+
+    User->>CLI: python cli.py generate mission.yaml budget
+    CLI->>RG: generate(budget)
+
+    RG->>CKPT: check run state
+
+    alt resume available
+        CKPT-->>RG: load previous results and history
+    else fresh run
+        RG->>RG: create new run folder
+    end
+
+    loop until budget reached
+        RG->>MCTS: select node using UCB
+        MCTS-->>RG: candidate node
+
+        RG->>RG: generate or mutate obstacles
+        RG->>VAL: validate candidate
+
+        alt invalid candidate
+            VAL-->>RG: non-compliant
+            RG->>CKPT: save invalid_candidates.csv
+        else valid candidate
+            VAL-->>RG: compliant
+            RG->>CKPT: save pending_candidate.json
+
+            RG->>SIM: execute test case
+
+            alt simulator or system error
+                SIM-->>RG: error
+                RG->>CKPT: save system_errors.csv
+                RG->>SIM: retry if allowed
+            else successful simulation
+                SIM-->>RG: trajectory and min_distance
+                RG->>RG: classify failure type
+                RG->>RG: compute reward
+                RG->>MCTS: backpropagate reward
+                RG->>ARCH: update elite cell
+                RG->>CKPT: append results and history
+                RG->>CKPT: clear pending candidate
+            end
+        end
+    end
+
+    RG->>CKPT: save final CSV and plots
+    RG-->>CLI: return selected test cases
+    CLI-->>User: generated tests saved
