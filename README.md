@@ -74,6 +74,20 @@ The search tries to minimize this value while keeping the test case valid.
 
 ---
 
+## Folder-Level Documentation
+
+Additional README files are available in the main folders:
+
+| Folder | Documentation |
+|---|---|
+| `src/` | Source-code organization and main algorithm files |
+| `scripts/` | Experiment-running scripts |
+| `case_studies/` | Mission files and case-study descriptions |
+| `docs/` | Setup guide and project documentation |
+| `docs/uml/` | Mermaid UML diagrams |
+
+---
+
 ## Repository Structure
 
 ```text
