@@ -1,9 +1,14 @@
 #!/bin/bash
 
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 source ~/miniconda3/etc/profile.d/conda.sh 2>/dev/null || source ~/anaconda3/etc/profile.d/conda.sh
 conda activate uav
 
-cd /home/roby/Projects/UAV-Testing-Competition/snippets
+cd "$PROJECT_ROOT"
 
 mkdir -p results/batch_logs
 

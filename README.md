@@ -18,7 +18,7 @@ The generator combines:
 
 The objective is to automatically generate valid obstacle configurations that expose weaknesses in PX4-Avoidance.
 
-Given a mission and a set of generated obstacles, the simulator returns the UAV trajectory. The main quantity optimized by the algorithm is the minimum distance between the UAV and the obstacles:
+Given a mission and a set of generated obstacles, the simulator returns the UAV trajectory. The main quantity optimized by the algorithm is:
 
 ```text
 min_distance = minimum distance between the UAV trajectory and all generated obstacles
@@ -32,6 +32,41 @@ The search tries to minimize this value while keeping the test case valid.
 | Soft fail | `0.25 m <= min_distance < 1.5 m` | Unsafe close pass |
 | Near miss | `1.5 m <= min_distance < 3.0 m` | Interesting but not officially unsafe |
 | Safe | `min_distance >= 3.0 m` | Valid but less interesting |
+
+---
+
+## Repository Structure
+
+```text
+.
+├── README.md
+├── Dockerfile
+├── requirements.txt
+├── cli.py
+├── src/
+│   ├── __init__.py
+│   ├── cli.py
+│   ├── random_generator.py
+│   └── testcase.py
+├── scripts/
+│   └── run_all_100.sh
+├── case_studies/
+│   ├── README.md
+│   ├── mission1.yaml
+│   ├── mission2.yaml
+│   ├── mission3.yaml
+│   ├── mission1.plan
+│   ├── mission2.plan
+│   └── mission3.plan
+└── docs/
+    └── uml/
+        ├── class_diagram.mmd
+        ├── execution_flow.mmd
+        └── sequence_diagram.mmd
+```
+
+The root `cli.py` file is only a launcher.  
+The actual implementation is inside `src/`.
 
 ---
 
@@ -190,39 +225,9 @@ The official point is:
 
 ---
 
-## Repository Structure
-
-```text
-.
-├── README.md
-├── Dockerfile
-├── requirements.txt
-├── cli.py
-├── testcase.py
-├── random_generator.py
-├── run_all_100.sh
-├── case_studies/
-│   ├── mission1.yaml
-│   ├── mission2.yaml
-│   ├── mission3.yaml
-│   ├── mission1.plan
-│   ├── mission2.plan
-│   └── mission3.plan
-└── docs/
-    └── uml/
-        ├── class_diagram.mmd
-        ├── execution_flow.mmd
-        ├── sequence_diagram.mmd
-        ├── Class_Diagram.png
-        ├── Execution_Flow.png
-        └── Sequence_Diagram.png
-```
-
----
-
 ## Main Files
 
-### `random_generator.py`
+### `src/random_generator.py`
 
 Contains the TG-MCTS-Elites algorithm.
 
@@ -237,7 +242,7 @@ Main responsibilities:
 - result ranking;
 - plot generation.
 
-### `testcase.py`
+### `src/testcase.py`
 
 Wrapper around Aerialist/PX4 test execution.
 
@@ -248,17 +253,19 @@ Main responsibilities:
 - extract obstacle distances;
 - save generated YAML files.
 
+### `src/cli.py`
+
+Command-line implementation.
+
 ### `cli.py`
 
-Command-line entry point.
-
-Example:
+Root launcher. It keeps the following command working:
 
 ```bash
 python cli.py generate case_studies/mission1.yaml 10
 ```
 
-### `run_all_100.sh`
+### `scripts/run_all_100.sh`
 
 Runs the full experiment:
 
@@ -331,7 +338,7 @@ The fifth value is the rotation bin.
 Run 100 simulations for each mission:
 
 ```bash
-./run_all_100.sh
+./scripts/run_all_100.sh
 ```
 
 This executes:
@@ -420,12 +427,13 @@ test_i.png
 
 ## UML Diagrams
 
-The UML diagrams are included in two formats:
+The UML diagrams are stored as Mermaid source files in:
 
-1. Mermaid source files in `docs/uml/*.mmd`
-2. Mermaid diagrams rendered directly by GitHub in this README
+- `docs/uml/class_diagram.mmd`
+- `docs/uml/execution_flow.mmd`
+- `docs/uml/sequence_diagram.mmd`
 
-This avoids relying only on compressed PNG images.
+They are also rendered directly below by GitHub.
 
 ### Editing with Mermaid Live Editor
 
@@ -436,12 +444,6 @@ To edit a diagram visually:
 3. Paste it into Mermaid Live Editor.
 4. Export the diagram again if a PNG or SVG version is needed.
 5. Commit the updated `.mmd` source file.
-
-Mermaid source files:
-
-- `docs/uml/class_diagram.mmd`
-- `docs/uml/execution_flow.mmd`
-- `docs/uml/sequence_diagram.mmd`
 
 ---
 
