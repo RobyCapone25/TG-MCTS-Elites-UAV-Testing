@@ -1,47 +1,63 @@
 # Documentation
 
-This folder contains additional documentation for the project.
+This folder contains the detailed documentation for the TG-MCTS-Elites UAV test generator.
 
 ---
 
-## Files and Folders
+## Contents
 
-| Path | Role |
+| Path | Purpose |
 |---|---|
-| `SETUP.md` | Complete setup and installation guide |
-| `uml/` | Mermaid UML diagrams |
+| `SETUP.md` | Complete installation, configuration, verification, execution, and recovery guide |
+| `uml/` | Mermaid architecture and execution diagrams |
 
 ---
 
-## Setup Guide
+## Setup Documentation
 
-The full setup guide is available in:
+The complete setup guide is:
 
 ```text
 docs/SETUP.md
 ```
 
-It explains:
+It documents:
 
-- Linux/Ubuntu requirement;
+- Linux and Ubuntu;
 - Python 3.10;
-- Conda environment;
-- Docker installation;
-- Aerialist Docker image `skhatiri/aerialist:2.0`;
-- PX4/Gazebo handled inside Docker;
+- the Conda environment;
+- the Aerialist Python package;
+- Docker installation and permissions;
+- the pinned `skhatiri/aerialist:2.0` image;
+- the distinction between host Aerialist and containerized PX4/Gazebo;
 - `.env` configuration;
-- how to run a quick test;
-- how to run the full experiment;
-- crash recovery.
+- automated setup verification;
+- quick tests;
+- full experiments;
+- deterministic seeds;
+- crash recovery;
+- generated files;
+- common setup errors.
+
+Run the environment checker from the repository root:
+
+```bash
+./scripts/check_setup.sh
+```
 
 ---
 
-## UML Diagrams
+## UML Documentation
 
-The UML diagrams are stored in:
+Mermaid source files are stored in:
 
 ```text
 docs/uml/
 ```
 
-They are written in Mermaid format so that they can be rendered directly by GitHub or edited using Mermaid Live Editor.
+The diagrams can be:
+
+- reviewed directly on GitHub;
+- edited as text;
+- copied into Mermaid Live Editor;
+- exported to SVG or PNG when necessary.

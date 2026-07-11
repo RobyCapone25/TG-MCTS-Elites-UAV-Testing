@@ -30,19 +30,23 @@ The project was developed for the following setup:
 | Python | Python 3.10 |
 | Environment manager | Conda |
 | Docker | Required |
-| Aerialist | Docker image `skhatiri/aerialist:2.0` |
-| PX4 / Gazebo | Provided inside the Aerialist Docker container |
+| Host Aerialist package | Git tag `v1.0` in the Conda environment |
+| Aerialist simulator image | `skhatiri/aerialist:2.0` |
+| PX4 / Gazebo / ROS | Provided inside the Aerialist Docker container |
 | Simulation mode | Docker-based execution |
 
-For the standard workflow, PX4, Gazebo, and ROS do not need to be installed manually on the host machine. They are executed through the Aerialist Docker container.
+For the standard workflow, the Aerialist Python API is installed in the Conda environment, while PX4, Gazebo, and ROS run inside the pinned Aerialist Docker image. PX4, Gazebo, and ROS do not need to be installed manually on the host.
 
 Minimal setup:
 
 ```bash
 conda env create -f environment.yml
 conda activate uav
+
 cp .env.example .env
 docker pull skhatiri/aerialist:2.0
+
+./scripts/check_setup.sh
 ```
 
 Then run a quick test:
@@ -104,6 +108,7 @@ Additional README files are available in the main folders:
 │   ├── random_generator.py
 │   └── testcase.py
 ├── scripts/
+│   ├── check_setup.sh
 │   └── run_all_100.sh
 ├── case_studies/
 │   ├── README.md
@@ -346,8 +351,11 @@ Minimal installation:
 ```bash
 conda env create -f environment.yml
 conda activate uav
+
 cp .env.example .env
 docker pull skhatiri/aerialist:2.0
+
+./scripts/check_setup.sh
 ```
 
 The `.env` file configures the simulation backend. The default configuration uses Docker:
@@ -361,7 +369,28 @@ DOCKER_IMG=skhatiri/aerialist:2.0
 DOCKER_TIMEOUT=1000
 ```
 
-PX4/Gazebo are handled inside the Aerialist Docker image.
+The host Conda environment contains the Aerialist Python API. PX4, PX4-Avoidance, Gazebo, and ROS are handled inside the pinned Aerialist Docker image.
+
+---
+
+## Verify the Setup
+
+Before launching a simulation, run:
+
+```bash
+conda activate uav
+./scripts/check_setup.sh
+```
+
+The checker validates the operating system, Python version, Conda environment,
+Python imports, Docker permissions, Docker image, `.env`, mission files, and
+source syntax without consuming the simulation budget.
+
+A correct installation ends with:
+
+```text
+SETUP CHECK PASSED
+```
 
 ---
 

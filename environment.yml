@@ -1,11 +1,20 @@
 name: uav
+
 channels:
   - conda-forge
   - defaults
+
 dependencies:
   - python=3.10
   - pip
+  - git
+
   - pip:
+      # Host-side Aerialist Python API.
+      # PX4, Gazebo, and ROS remain inside the Docker image.
+      - git+https://github.com/skhatiri/Aerialist.git@v1.0
+
+      # TG-MCTS-Elites dependencies.
       - python-decouple
       - matplotlib
       - numpy

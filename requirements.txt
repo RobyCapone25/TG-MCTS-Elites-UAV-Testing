@@ -1,7 +1,15 @@
-### include any additional libraries used in your code here
-### do not include aerialist, it is already installed in the Dockerimage
+# Additional Python packages used by TG-MCTS-Elites.
+#
+# Host installation of Aerialist:
+#   python -m pip install "git+https://github.com/skhatiri/Aerialist.git@v1.0"
+#
+# Aerialist is not repeated here because the project Dockerfile
+# inherits it from skhatiri/aerialist:2.0.
+
 python-decouple
 matplotlib
 numpy
 pandas
 PyYAML
+munch
+pyparsing

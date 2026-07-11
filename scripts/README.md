@@ -1,42 +1,56 @@
 # Scripts
 
-This folder contains helper scripts used to run experiments.
+This folder contains reproducible helper scripts for setup verification and experiment execution.
 
 ---
 
 ## Files
 
-| File | Role |
+| File | Purpose |
 |---|---|
-| `run_all_100.sh` | Runs 100 simulations for each of the three missions |
+| `check_setup.sh` | Verifies Linux, Python, Conda, Docker, Aerialist, `.env`, mission files, and syntax |
+| `run_all_100.sh` | Runs 100 simulations for each of the three competition missions |
 
 ---
 
-## Full Experiment
+## Verify the Environment
 
-From the repository root, run:
+From the repository root:
+
+```bash
+conda activate uav
+./scripts/check_setup.sh
+```
+
+A complete setup prints:
+
+```text
+SETUP CHECK PASSED
+```
+
+The checker does not start PX4 or consume the search budget.
+
+---
+
+## Full Fresh Experiment
 
 ```bash
 ./scripts/run_all_100.sh
 ```
 
-This executes:
+This runs:
 
 ```text
-mission1: 100 simulations
-mission2: 100 simulations
-mission3: 100 simulations
+mission1: 100 successful simulations
+mission2: 100 successful simulations
+mission3: 100 successful simulations
 ```
 
 Total:
 
 ```text
-100 x 3 = 300 simulations
+300 successful simulations
 ```
-
----
-
-## Important Note About Fresh Runs
 
 The script uses:
 
@@ -44,22 +58,18 @@ The script uses:
 TG_FORCE_NEW=1
 ```
 
-This means each mission starts as a fresh run.
+Therefore, it starts a fresh run for each mission.
 
 ---
 
-## Crash Recovery
+## Resume an Interrupted Mission
 
-If a run crashes, do not restart with `TG_FORCE_NEW=1`.
+Do not use `run_all_100.sh` to resume an interrupted mission.
 
-Instead, resume the interrupted mission manually.
-
-Example:
+Resume the relevant mission manually without `TG_FORCE_NEW=1`:
 
 ```bash
 python cli.py generate case_studies/mission1.yaml 100
 ```
 
-The value `100` means total target budget, not 100 additional simulations.
-
-For example, if 37 simulations were already completed before the crash, the resumed run continues from simulation 38 and stops at 100.
+The budget remains the total target, not an additional amount.
