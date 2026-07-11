@@ -3,41 +3,47 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
 .env
 .venv/
 venv/
+env/
 
 # Local simulation outputs
+generated_tests/
 results/
 logs/
-generated_tests/
+
+# PX4 / ROS / simulation artifacts
 *.ulg
 *.bag
 *.log
 
-# OS/editor
-.DS_Store
-.vscode/
-.idea/
-
-# Temporary files
+# Local backups and temporary files
+backups/
+.harmonization_backup/
+tg_mcts_*_update/
 *.tmp
 *.bak
 random_generator_backup_*.py
+random_generator_before_tg_mcts_elites.py
 
 # Local helper files
 .env.save
 GITHUB_UPLOAD_COMMANDS.sh
-random_generator_backup_*.py
-random_generator_before_tg_mcts_elites.py
-tg_mcts_elites_full_uml.mmd
 
-# Python/cache
-__pycache__/
-*.pyc
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# Heavy simulation outputs
-results/
-logs/
-generated_tests/
-*.ulg
+# Operating systems
+.DS_Store
+Thumbs.db

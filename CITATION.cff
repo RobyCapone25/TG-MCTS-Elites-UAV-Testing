@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "TG-MCTS-Elites UAV Test Generator"
+type: software
+authors:
+  - family-names: "Capone"
+    given-names: "Roberto"
+repository-code: "https://github.com/RobyCapone25/TG-MCTS-Elites-UAV-Testing"
+version: "0.1.0"
+date-released: "2026-07-11"
+keywords:
+  - UAV testing
+  - search-based software testing
+  - Monte Carlo Tree Search
+  - MAP-Elites
+  - PX4
+  - Aerialist

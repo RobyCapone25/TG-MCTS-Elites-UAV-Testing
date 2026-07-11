@@ -1,0 +1,30 @@
+name: Python checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Compile launcher
+        run: python -m py_compile cli.py
+
+      - name: Compile source files
+        run: |
+          python -m py_compile \
+            src/__init__.py \
+            src/cli.py \
+            src/random_generator.py \
+            src/testcase.py \
+            src/plot_official.py

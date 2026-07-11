@@ -13,3 +13,4 @@ dependencies:
       - pyyaml
       - munch
       - pyparsing
+      - pyulog
