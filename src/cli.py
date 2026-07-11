@@ -177,49 +177,132 @@ def _generate_official_plot(
         return f"failed:{type(exc).__name__}"
 
 
-def _copy_global_algorithm_plots(generator: Any, plots_dir: Path) -> Dict[str, str]:
+def _native_run_directory(
+    generator: Any,
+    test_cases: List[Any],
+) -> Optional[Path]:
     """
-    Copy the main TG-MCTS-Elites plots into the common plots folder.
-    We keep the original results/... files untouched and only create clean copies.
-    """
-    copied = {}
+    Resolve the native TG-MCTS-Elites run directory without changing the search.
 
-    for attr_name, out_name in (
-        ("progress_plot_path", "progress_final.png"),
-        ("tree_plot_path", "tree_final.png"),
-    ):
-        src = getattr(generator, attr_name, None)
-        if src and Path(src).is_file():
-            dst = plots_dir / out_name
-            shutil.copy2(src, dst)
-            copied[attr_name] = dst.name
+    The normal source is ``generator.output_dir``. The selected test-case plot
+    paths provide a fallback for older generator revisions.
+    """
+    candidates: List[Path] = []
+
+    output_dir = getattr(generator, "output_dir", None)
+    if output_dir:
+        candidates.append(Path(str(output_dir)))
+
+    for test_case in test_cases:
+        plot_file = getattr(test_case, "plot_file", None)
+        if not plot_file:
+            continue
+
+        plot_path = Path(str(plot_file))
+        if plot_path.parent.name == "scenario_plots":
+            candidates.append(plot_path.parent.parent)
+
+        for parent in plot_path.parents:
+            if (parent / "run_state.json").is_file():
+                candidates.append(parent)
+                break
+
+    seen = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.expanduser().resolve()
+        except OSError:
+            continue
+
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+
+        if resolved.is_dir():
+            return resolved
+
+    return None
+
+
+def _copy_all_native_algorithm_plots(
+    generator: Any,
+    test_cases: List[Any],
+    plots_dir: Path,
+) -> List[str]:
+    """
+    Copy every PNG produced by the native search into the common ``plots/``
+    directory while preserving the originals under ``results/``.
+
+    The destination is flat. If two native files have the same basename, their
+    relative path components are joined with ``__`` to avoid overwriting.
+    """
+    native_run_dir = _native_run_directory(generator, test_cases)
+    if native_run_dir is None:
+        logger.warning("Could not locate the native TG-MCTS-Elites run directory.")
+        return []
+
+    copied: List[str] = []
+
+    for source in sorted(native_run_dir.rglob("*.png")):
+        if not source.is_file():
+            continue
+
+        relative_source = source.relative_to(native_run_dir)
+        destination = plots_dir / source.name
+
+        if destination.exists():
+            try:
+                same_content = (
+                    destination.stat().st_size == source.stat().st_size
+                    and destination.read_bytes() == source.read_bytes()
+                )
+            except OSError:
+                same_content = False
+
+            if same_content:
+                copied.append(str(destination.relative_to(plots_dir.parent)))
+                continue
+
+            destination = plots_dir / "__".join(relative_source.parts)
+
+        shutil.copy2(source, destination)
+        copied.append(str(destination.relative_to(plots_dir.parent)))
 
     return copied
 
 
-def _copy_selected_scenario_plots(generator: Any, records: List[Dict[str, Any]], plots_dir: Path) -> List[str]:
+def _copy_selected_scenario_plots(
+    test_cases: List[Any],
+    records: List[Dict[str, Any]],
+    plots_dir: Path,
+) -> List[str]:
     """
-    Copy only the scenario plots corresponding to the returned ranking, if available.
-    This avoids flooding the final folder with every internal scenario image while
-    still collecting the relevant native plots in one place.
-    """
-    copied = []
-    ranking = getattr(generator, "last_final_selection", None) or []
-    if not ranking:
-        return copied
+    Add stable rank-based aliases for the native plots of the returned tests.
 
-    for idx, item in enumerate(ranking):
-        src = item.get("plot")
-        if not src:
+    This uses the returned test objects directly and therefore does not depend
+    on optional generator attributes such as ``last_final_selection``.
+    """
+    copied: List[str] = []
+
+    for index, test_case in enumerate(test_cases):
+        source_raw = getattr(test_case, "plot_file", None)
+        if not source_raw:
             continue
-        src_path = Path(str(src))
-        if not src_path.is_file():
+
+        source = Path(str(source_raw))
+        if not source.is_file():
+            logger.warning("Selected native scenario plot not found: %s", source)
             continue
-        dst = plots_dir / f"rank{idx+1:02d}_scenario_native.png"
-        shutil.copy2(src_path, dst)
-        copied.append(dst.name)
-        if idx < len(records):
-            records[idx]["scenario_native_plot"] = dst.name
+
+        destination = plots_dir / f"rank{index + 1:02d}_scenario_native.png"
+        shutil.copy2(source, destination)
+
+        relative_destination = str(destination.relative_to(plots_dir.parent))
+        copied.append(relative_destination)
+
+        if index < len(records):
+            records[index]["scenario_native_plot"] = relative_destination
+
     return copied
 
 
@@ -307,6 +390,8 @@ def _write_export_checkpoint(
     records: List[Dict[str, Any]],
     status: str,
     error: str = "",
+    native_plots: Optional[List[str]] = None,
+    ranked_native_plots: Optional[List[str]] = None,
 ) -> None:
     payload = {
         "kind": "harmonized-output-index",
@@ -320,6 +405,8 @@ def _write_export_checkpoint(
         "algorithm_output_dir": getattr(generator, "output_dir", None),
         "generated_test_count": len(records),
         "plots_folder": "plots",
+        "native_plots": native_plots or [],
+        "ranked_native_plots": ranked_native_plots or [],
         "created_at": datetime.now().isoformat(),
         "error": error,
         "tests": records,
@@ -346,6 +433,8 @@ def main() -> int:
     original_stderr = sys.stderr
     generator = None
     records: List[Dict[str, Any]] = []
+    native_plots: List[str] = []
+    ranked_native_plots: List[str] = []
 
     with transcript_path.open("a", encoding="utf-8", buffering=1) as transcript:
         sys.stdout = Tee(original_stdout, transcript)
@@ -359,8 +448,16 @@ def main() -> int:
             for index, test_case in enumerate(test_cases):
                 records.append(_export_one(test_case, index, output_folder))
 
-            global_plot_info = _copy_global_algorithm_plots(generator, plots_dir)
-            selected_scenarios = _copy_selected_scenario_plots(generator, records, plots_dir)
+            native_plots = _copy_all_native_algorithm_plots(
+                generator,
+                test_cases,
+                plots_dir,
+            )
+            ranked_native_plots = _copy_selected_scenario_plots(
+                test_cases,
+                records,
+                plots_dir,
+            )
 
             _write_manifest(output_folder, records)
             _write_export_checkpoint(
@@ -369,6 +466,8 @@ def main() -> int:
                 generator=generator,
                 records=records,
                 status="completed",
+                native_plots=native_plots,
+                ranked_native_plots=ranked_native_plots,
             )
 
             print(f"{len(test_cases)} test cases generated")
@@ -385,6 +484,8 @@ def main() -> int:
                 records=records,
                 status="failed",
                 error=str(exc),
+                native_plots=native_plots,
+                ranked_native_plots=ranked_native_plots,
             )
             return 1
 
