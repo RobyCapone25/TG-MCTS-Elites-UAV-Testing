@@ -43,6 +43,10 @@ class ConfirmationMixin:
         if elapsed_minutes is not None:
             base.elapsed_samples.append(float(elapsed_minutes))
         base.confirmation_attempts += 1
+        base.test.mean_official_point = self._mean_official_point(base)
+        base.test.failure_reproducibility = self._failure_reproducibility(base)
+        base.test.confirmation_samples = len(self._result_point_samples(base))
+        base.test.mean_min_distance = self._mean_min_distance(base)
 
     def _confirm_candidate_once(self, base: EvalResult, budget: int) -> bool:
         node = MCTSNode(
@@ -56,6 +60,7 @@ class ConfirmationMixin:
             if self.simulation_attempts >= budget:
                 return False
 
+            started = time.perf_counter()
             try:
                 attempt = self._consume_simulation_attempt(budget)
                 observed = self._run_simulation_once(
@@ -68,6 +73,16 @@ class ConfirmationMixin:
                     simulation_index=attempt,
                     node=node,
                     base_simulation_attempt=base.simulation_attempt,
+                )
+
+                self._record_attempt(
+                    node=node,
+                    simulation_attempt=attempt,
+                    candidate_retry=retry,
+                    attempt_status="evaluated",
+                    simulation_seconds=time.perf_counter() - started,
+                    phase="confirmation",
+                    result=observed,
                 )
 
                 # Confirmation executions consume real attempts and belong in
@@ -87,6 +102,13 @@ class ConfirmationMixin:
                     retry=retry,
                     outcome="evaluated",
                 )
+                if getattr(self, "benchmark", None) is not None:
+                    self.benchmark.record_confirmation(
+                        base=base,
+                        observed=observed,
+                        simulation_attempt=attempt,
+                        outcome="evaluated",
+                    )
                 print(
                     "[confirmation] "
                     f"base attempt {base.simulation_attempt}: "
@@ -100,6 +122,15 @@ class ConfirmationMixin:
                 return False
 
             except NonCompliantCandidateError as error:
+                self._record_attempt(
+                    node=node,
+                    simulation_attempt=self.simulation_attempts,
+                    candidate_retry=retry,
+                    attempt_status="noncompliant",
+                    simulation_seconds=time.perf_counter() - started,
+                    phase="confirmation",
+                    error=error,
+                )
                 self._append_confirmation_observation(
                     base,
                     point=0,
@@ -114,6 +145,13 @@ class ConfirmationMixin:
                     outcome="noncompliant",
                     error=str(error),
                 )
+                if getattr(self, "benchmark", None) is not None:
+                    self.benchmark.record_confirmation(
+                        base=base,
+                        observed=None,
+                        simulation_attempt=self.simulation_attempts,
+                        outcome="noncompliant",
+                    )
                 print(
                     "[confirmation] Candidate did not reproduce as a compliant "
                     f"failure: {error}"
@@ -121,6 +159,15 @@ class ConfirmationMixin:
                 return True
 
             except Exception as error:
+                self._record_attempt(
+                    node=node,
+                    simulation_attempt=self.simulation_attempts,
+                    candidate_retry=retry,
+                    attempt_status="system_error",
+                    simulation_seconds=time.perf_counter() - started,
+                    phase="confirmation",
+                    error=error,
+                )
                 self._log_system_error(
                     node=node,
                     simulation_index=self.simulation_attempts,

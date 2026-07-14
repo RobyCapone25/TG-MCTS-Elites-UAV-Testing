@@ -9,3 +9,5 @@ The Mermaid sources document the implementation actually present in `src/tg_mcts
 | `sequence_diagram.mmd` | Runtime interactions among the CLI, generator, simulator, persistence, and selector |
 
 The diagrams are version-controlled as text and can be rendered directly by GitHub or edited with Mermaid Live Editor.
+
+The diagrams use the descriptive `TGMCTSElitesGenerator` name. `RandomGenerator` appears only as a backward-compatible alias. They also distinguish input compliance, mission outcome, distance-based failure evidence, and confirmed collision evidence.

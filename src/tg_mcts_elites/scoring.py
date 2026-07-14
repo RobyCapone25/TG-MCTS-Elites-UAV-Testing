@@ -16,6 +16,29 @@ class ScoringMixin:
             return 1
         return 0
 
+    def _failure_evidence(self, min_distance: float, mission_status: str) -> str:
+        """Describe the available evidence without claiming an unobserved collision.
+
+        The competition score is distance based.  Mission non-completion is kept
+        as a separate execution outcome because it may indicate a crash, an
+        avoidance deadlock, or another system-under-test failure.  In the absence
+        of an independent PX4/Gazebo collision flag, none of these labels claims
+        that a collision is confirmed.
+        """
+        if min_distance < self.CRITICAL_PROXIMITY_THRESHOLD:
+            if mission_status == "not_completed":
+                return "noncompleted_critical_proximity"
+            return "critical_proximity"
+        if min_distance < self.FAILURE_THRESHOLD:
+            if mission_status == "not_completed":
+                return "noncompleted_official_proximity"
+            return "official_proximity"
+        if mission_status == "not_completed":
+            return "noncompleted_without_official_proximity"
+        if mission_status == "unknown":
+            return "unknown_completion"
+        return "none"
+
     def _reward(
         self,
         min_distance: float,
@@ -64,10 +87,12 @@ class ScoringMixin:
 
     def _sort_key(self, result: EvalResult) -> Tuple:
         """Quality key used inside MAP-Elites during the search."""
-        completion_priority = 1 if result.mission_status == "completed" else 0
+        observed_outcome_priority = (
+            1 if result.mission_status in {"completed", "not_completed"} else 0
+        )
         return (
             result.point,
-            completion_priority,
+            observed_outcome_priority,
             -result.min_distance,
             result.reward,
             -len(result.obstacles),
@@ -103,10 +128,16 @@ class ScoringMixin:
         return self._is_official_failure(result) and result.compliance_status == "compliant"
 
     def _is_returnable_failure(self, result: EvalResult) -> bool:
+        """Return completed and non-completed official proximity failures.
+
+        A non-completed mission is not automatically a collision.  It is eligible
+        only when the execution itself produced an official distance failure and
+        retained complete evidence.  Unknown completion remains excluded.
+        """
         return (
             self._is_official_failure(result)
             and result.compliance_status == "compliant"
-            and result.mission_status == "completed"
+            and result.mission_status in {"completed", "not_completed"}
             and result.artifacts_saved
             and self._failure_reproducibility(result) >= self.MIN_FAILURE_REPRODUCIBILITY
         )

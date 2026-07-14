@@ -6,8 +6,8 @@ The root `cli.py` forwards the competition command to `src/cli.py`. The public i
 |---|---|
 | `cli.py` | command-line parsing and final ranking export |
 | `testcase.py` | Aerialist/PX4 execution wrapper |
-| `random_generator.py` | backward-compatible import of `RandomGenerator` |
-| `tg_mcts_elites/generator.py` | search orchestration and phase control |
+| `random_generator.py` | exports `TGMCTSElitesGenerator` and the old `RandomGenerator` alias |
+| `tg_mcts_elites/generator.py` | `TGMCTSElitesGenerator` search orchestration and phase control |
 | `tg_mcts_elites/config.py` | constants, thresholds, and budget policies |
 | `tg_mcts_elites/models.py` | `MCTSNode`, `EvalResult`, and persisted test wrappers |
 | `tg_mcts_elites/mission.py` | case-study mission resolution, QGroundControl parsing, and frame inference |
@@ -26,15 +26,17 @@ The root `cli.py` forwards the competition command to `src/cli.py`. The public i
 
 ## Main dependency direction
 
-The mixins contain focused operations and are composed by `RandomGenerator`. The CLI depends on the compatibility import, while the package itself remains independent of the root launcher.
+The mixins contain focused operations and are composed by `TGMCTSElitesGenerator`. The CLI depends on the compatibility import, while the package itself remains independent of the root launcher.
 
 ```text
 root cli.py
     -> src/cli.py
-        -> random_generator.RandomGenerator
-            -> tg_mcts_elites.generator.RandomGenerator
+        -> random_generator.TGMCTSElitesGenerator
+            -> tg_mcts_elites.generator.TGMCTSElitesGenerator
+
+Backward-compatible imports of `RandomGenerator` resolve to the same class.
 ```
 
 ## Tests
 
-The `tests/` directory verifies core scoring and selection rules, mission parsing and frame conversion, output layout, progress plots, and cross-module method contracts.
+The `tests/` directory verifies core scoring and selection rules, non-completed proximity retention, generator-name compatibility, mission parsing and frame conversion, output layout, progress plots, and cross-module method contracts.

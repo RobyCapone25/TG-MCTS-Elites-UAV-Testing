@@ -14,7 +14,7 @@ if str(SRC_DIR) not in sys.path:
 
 from aerialist.px4.obstacle import Obstacle
 
-from tg_mcts_elites.generator import RandomGenerator
+from tg_mcts_elites.generator import TGMCTSElitesGenerator
 from tg_mcts_elites.models import EvalResult
 
 
@@ -46,7 +46,7 @@ def obstacle(x: float, y: float, rotation: float = 0.0) -> Obstacle:
 
 class CorePolicyTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.generator = object.__new__(RandomGenerator)
+        self.generator = object.__new__(TGMCTSElitesGenerator)
         self.generator.simulation_attempts = 10
         self.generator.elites = {}
 
@@ -83,6 +83,7 @@ class CorePolicyTests(unittest.TestCase):
             point_samples=[point],
             distance_samples=[distance],
             elapsed_samples=[1.0],
+            failure_evidence=self.generator._failure_evidence(distance, mission_status),
         )
 
     def test_official_point_boundaries(self) -> None:
@@ -90,6 +91,40 @@ class CorePolicyTests(unittest.TestCase):
         self.assertEqual(self.generator._official_point(0.50), 2)
         self.assertEqual(self.generator._official_point(1.20), 1)
         self.assertEqual(self.generator._official_point(1.50), 0)
+
+    def test_noncompleted_official_failure_is_returnable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.result(
+                Path(directory) / "noncompleted",
+                0.0,
+                20.0,
+                0.10,
+                5,
+                ((0,),),
+                mission_status="not_completed",
+            )
+            self.assertEqual(
+                result.failure_evidence,
+                "noncompleted_critical_proximity",
+            )
+            self.assertTrue(self.generator._is_returnable_failure(result))
+
+    def test_noncompleted_without_official_proximity_is_not_returnable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.result(
+                Path(directory) / "noncompleted_safe",
+                0.0,
+                20.0,
+                2.5,
+                0,
+                ((0,),),
+                mission_status="not_completed",
+            )
+            self.assertEqual(
+                result.failure_evidence,
+                "noncompleted_without_official_proximity",
+            )
+            self.assertFalse(self.generator._is_returnable_failure(result))
 
     def test_near_duplicate_scenarios_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -138,7 +173,7 @@ class CorePolicyTests(unittest.TestCase):
                 self.generator.MIN_FAILURE_REPRODUCIBILITY,
             )
 
-    def test_final_suite_contains_only_diverse_completed_failures(self) -> None:
+    def test_final_suite_contains_only_diverse_returnable_failures(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             failure = self.result(root / "failure", 0.0, 20.0, 0.2, 5, ((0,),))
@@ -192,7 +227,7 @@ class CorePolicyTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            generator = object.__new__(RandomGenerator)
+            generator = object.__new__(TGMCTSElitesGenerator)
             generator.case_study_file = str(yaml_path)
             generator._mission_reference_cache = None
             generator._reference_pose_cache = None
@@ -249,7 +284,7 @@ class CorePolicyTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            generator = object.__new__(RandomGenerator)
+            generator = object.__new__(TGMCTSElitesGenerator)
             generator.case_study_file = str(yaml_path)
             generator._mission_reference_cache = None
             generator._reference_pose_cache = None

@@ -1,6 +1,6 @@
 # TG-MCTS-Elites UAV Testing
 
-Rule-compliant search-based test generation for the UAV Testing Competition. The project combines mission-guided obstacle generation, Monte Carlo Tree Search, MAP-Elites, strict simulator-attempt accounting, confirmation reruns, and diversity-aware final selection.
+Rule-compliant search-based test generation for the UAV Testing Competition. The project combines mission-guided obstacle generation, Monte Carlo Tree Search, MAP-Elites, strict simulator-attempt accounting, confirmation reruns, explicit execution-outcome classification, and diversity-aware final selection.
 
 ## Authors
 
@@ -32,7 +32,7 @@ The second argument is a strict upper bound on real simulator executions. Succes
 | `1.0 <= d < 1.5 m` | 1 |
 | `d >= 1.5 m` | 0 |
 
-A test is an official failure when `d < 1.5 m`. The implementation labels `d < 0.25 m` as `critical_proximity`; it does not claim a collision without an independent collision signal.
+A test is an official distance failure when `d < 1.5 m`. The implementation labels `d < 0.25 m` as `critical_proximity`; it does not claim a collision without an independent collision signal. A non-completed mission is retained when it also satisfies the official distance threshold and is reported with explicit `failure_evidence`, such as `noncompleted_critical_proximity`.
 
 ## Algorithm overview
 
@@ -44,10 +44,11 @@ TG-MCTS-Elites performs the following steps:
 4. explore mutations with MCTS, UCB selection, and progressive widening;
 5. preserve quality and behavioral coverage with MAP-Elites;
 6. execute each candidate under a strict global simulator-attempt budget;
-7. retain heavy artifacts only for compliant official failures;
-8. rerun leading failures for robustness confirmation when the budget permits;
-9. rank failures using observed score, reproducibility, distance, simplicity, and runtime;
-10. filter the final suite by obstacle-geometry distance and trajectory-DTW diversity.
+7. retain heavy artifacts for compliant official distance failures, including non-completed proximity failures;
+8. keep non-completion as an execution outcome rather than an input-compliance error;
+9. rerun leading failures for robustness confirmation when the budget permits;
+10. rank failures using observed score, reproducibility, distance, simplicity, and runtime;
+11. filter the final suite by obstacle-geometry distance and trajectory-DTW diversity.
 
 See [`docs/ALGORITHM.md`](docs/ALGORITHM.md) for the complete technical description.
 
@@ -57,9 +58,9 @@ See [`docs/ALGORITHM.md`](docs/ALGORITHM.md) for the complete technical descript
 src/
 ├── cli.py
 ├── testcase.py
-├── random_generator.py          # backward-compatible import
+├── random_generator.py          # compatibility alias for the old class name
 └── tg_mcts_elites/
-    ├── generator.py             # high-level orchestration
+    ├── generator.py             # TGMCTSElitesGenerator orchestration
     ├── config.py                # constants and thresholds
     ├── models.py                # search-tree and result data structures
     ├── mission.py               # YAML/.plan parsing and frame inference
@@ -77,9 +78,12 @@ src/
     └── selection.py             # diverse final-suite selection
 ```
 
-`src/random_generator.py` only preserves the original import:
+`TGMCTSElitesGenerator` is the descriptive public class name. The old `RandomGenerator` name remains an alias so existing scripts continue to work:
 
 ```python
+from tg_mcts_elites import TGMCTSElitesGenerator
+
+# Backward compatibility only:
 from random_generator import RandomGenerator
 ```
 
@@ -154,7 +158,7 @@ The supplied value remains the total attempt limit, not an additional budget.
 PYTHONPATH="$PWD/src" python -m unittest discover -s tests -v
 ```
 
-The tests cover official score boundaries, mission-plan conversion, frame inference, geometric and trajectory diversity, confirmation-aware ranking, output generation, and critical method contracts.
+The tests cover official score boundaries, non-completed proximity failures, generator-name compatibility, mission-plan conversion, frame inference, geometric and trajectory diversity, confirmation-aware ranking, output generation, and critical method contracts.
 
 ## Scripts
 

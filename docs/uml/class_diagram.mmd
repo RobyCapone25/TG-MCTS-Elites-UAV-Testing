@@ -1,12 +1,17 @@
 classDiagram
-    class RandomGenerator {
+    class TGMCTSElitesGenerator {
         +generate(budget) List
         -reset_search_state()
         -process_evaluated_node(node, result, budget)
         -run_search_phase(root, attempt_limit, total_budget)
     }
 
+    class RandomGenerator {
+        <<compatibility alias>>
+    }
+
     class GeneratorConstants {
+        +CRITICAL_PROXIMITY_THRESHOLD
         +FAILURE_THRESHOLD
         +FINAL_MIN_SCENARIO_DISTANCE
         +FINAL_MIN_TRAJECTORY_DTW
@@ -53,9 +58,10 @@ classDiagram
 
     class ScoringMixin {
         -official_point(distance) int
+        -failure_evidence(distance, mission_status) str
         -reward(distance, obstacles, time, status) float
         -final_rank_key(result) Tuple
-        -failure_reproducibility(result) float
+        -is_returnable_failure(result) bool
     }
 
     class MCTSMixin {
@@ -106,6 +112,7 @@ classDiagram
         +log_file
         +plot_file
         +xy_time_plot_file
+        +failure_evidence
     }
 
     class EvalResult {
@@ -116,6 +123,8 @@ classDiagram
         +reward
         +cell
         +mission_status
+        +failure_evidence
+        +compliance_status
         +artifacts_saved
         +scenario_plot
         +xy_time_plot
@@ -141,26 +150,28 @@ classDiagram
         +log_file
         +plot_file
         +xy_time_plot_file
+        +failure_evidence
         +save_yaml(path)
     }
 
-    GeneratorConstants <|-- RandomGenerator
-    PersistenceMixin <|-- RandomGenerator
-    GeometryMixin <|-- RandomGenerator
-    MissionPlanMixin <|-- RandomGenerator
-    ValidationMixin <|-- RandomGenerator
-    ScenarioMixin <|-- RandomGenerator
-    ArchiveMixin <|-- RandomGenerator
-    ScoringMixin <|-- RandomGenerator
-    MCTSMixin <|-- RandomGenerator
-    TrajectoryMixin <|-- RandomGenerator
-    PlottingMixin <|-- RandomGenerator
-    SimulationMixin <|-- RandomGenerator
-    ConfirmationMixin <|-- RandomGenerator
-    SelectionMixin <|-- RandomGenerator
+    GeneratorConstants <|-- TGMCTSElitesGenerator
+    PersistenceMixin <|-- TGMCTSElitesGenerator
+    GeometryMixin <|-- TGMCTSElitesGenerator
+    MissionPlanMixin <|-- TGMCTSElitesGenerator
+    ValidationMixin <|-- TGMCTSElitesGenerator
+    ScenarioMixin <|-- TGMCTSElitesGenerator
+    ArchiveMixin <|-- TGMCTSElitesGenerator
+    ScoringMixin <|-- TGMCTSElitesGenerator
+    MCTSMixin <|-- TGMCTSElitesGenerator
+    TrajectoryMixin <|-- TGMCTSElitesGenerator
+    PlottingMixin <|-- TGMCTSElitesGenerator
+    SimulationMixin <|-- TGMCTSElitesGenerator
+    ConfirmationMixin <|-- TGMCTSElitesGenerator
+    SelectionMixin <|-- TGMCTSElitesGenerator
 
-    RandomGenerator --> MCTSNode
-    RandomGenerator --> EvalResult
+    RandomGenerator ..> TGMCTSElitesGenerator : alias
+    TGMCTSElitesGenerator --> MCTSNode
+    TGMCTSElitesGenerator --> EvalResult
     SimulationMixin --> TestCase
     PersistenceMixin --> SavedEvaluatedTestCase
     PersistenceMixin --> EvalResult

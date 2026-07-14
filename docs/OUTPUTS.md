@@ -33,7 +33,7 @@ results/tg_mcts_elites/<run-id>/
 Every evaluated execution contributes lightweight metadata to:
 
 ```text
-checkpoint/results.jsonl
+checkpoint/results.jsonl   # includes mission_status and failure_evidence
 checkpoint/history.jsonl
 history.csv
 run_state.json
@@ -50,7 +50,7 @@ checkpoint/system_errors.csv
 
 ## All retained official failures
 
-A compliant execution with `minimum_distance < 1.5 m` is stored under:
+An input-compliant execution with `minimum_distance < 1.5 m` is stored under, whether its mission outcome is `completed` or `not_completed`:
 
 ```text
 all_failed_cases/
@@ -72,7 +72,7 @@ A confirmation rerun that reproduces an official failure is saved with `confirma
 
 `trajectory_xy_time.png` contains the three-dimensional `(X,Y,t)` trajectory.
 
-Safe runs and near misses retain metadata only. Their temporary Aerialist YAML and ULG files are removed.
+Safe runs, near misses, and non-completions outside the official distance threshold retain metadata only. Their temporary Aerialist YAML and ULG files are removed.
 
 ## Best ranked failed tests
 
@@ -142,4 +142,4 @@ generated_tests/<same-run-id>/
 └── ...
 ```
 
-The folder may contain only `ranking.csv` when no compliant, completed, sufficiently reproducible, diverse official failure is returnable.
+The folder may contain only `ranking.csv` when no compliant, artifact-backed, sufficiently reproducible, diverse official distance failure is returnable. Both completed and non-completed proximity failures can be selected; `failure_evidence` records the distinction.

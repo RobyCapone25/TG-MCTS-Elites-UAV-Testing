@@ -1,5 +1,5 @@
 flowchart TD
-    A[CLI parses case-study YAML and strict attempt budget] --> B[Construct RandomGenerator]
+    A[CLI parses case-study YAML and strict attempt budget] --> B[Construct TGMCTSElitesGenerator]
     B --> C[Load case study with Aerialist]
     C --> D[Resolve referenced QGroundControl plan]
     D --> E[Convert geographic waypoints to local coordinates]
@@ -17,18 +17,15 @@ flowchart TD
     M -- Yes --> O[Persist pending candidate]
     O --> P[Consume one simulator-attempt unit]
     P --> Q[Execute Aerialist/PX4]
-    Q --> R{Execution outcome}
+    Q --> R{Infrastructure or execution result?}
 
     R -- System error --> S{Retry allowed and budget remains?}
     S -- Yes --> O
     S -- No --> J
 
-    R -- Mission non-compliant --> T[Log rejection and delete temporary heavy files]
-    T --> J
-
-    R -- Evaluated --> U[Extract trajectory and minimum distance]
-    U --> V[Compute official point, reward, and MAP-Elites cell]
-    V --> W{Compliant official failure?}
+    R -- Evaluated --> U[Extract trajectory, minimum distance, and mission outcome]
+    U --> V[Compute official point, reward, failure_evidence, and MAP-Elites cell]
+    V --> W{Official distance failure and input compliant?}
     W -- Yes --> X[Save YAML, ULG, overview plot, and XY-time plot]
     W -- No --> Y[Keep metadata only and delete temporary heavy files]
     X --> Z[Append result metadata]
@@ -38,8 +35,8 @@ flowchart TD
     AB --> J
 
     J -- Yes --> AC{Confirmation reserve available and failures found?}
-    AC -- Yes --> AD[Rerun leading failures within same global budget]
-    AD --> AE{Confirmation reproduces official failure?}
+    AC -- Yes --> AD[Rerun leading completed or non-completed proximity failures]
+    AD --> AE{Confirmation reproduces official distance failure?}
     AE -- Yes --> AF[Save separate confirmation failure artifacts]
     AE -- No --> AG[Keep confirmation metadata only]
     AF --> AH[Update point, distance, runtime, and reproducibility samples]
@@ -49,9 +46,10 @@ flowchart TD
     AI -- No --> AJ[Build final suite]
     AC -- No --> AJ
 
-    AJ --> AK[Keep completed compliant artifact-backed reproducible failures]
-    AK --> AL[Sort by robust rank key]
-    AL --> AM[Filter by obstacle distance and trajectory DTW]
-    AM --> AN[Save final tree, history, and three separate progress plots]
-    AN --> AO[Copy selected suite to best_ranked_failed_tests]
-    AO --> AP[CLI exports generated_tests using the same run id]
+    AJ --> AK[Keep compliant artifact-backed reproducible official distance failures]
+    AK --> AL[Allow mission outcomes completed or not_completed; reject unknown]
+    AL --> AM[Sort by robust rank key]
+    AM --> AN[Filter by obstacle distance and trajectory DTW]
+    AN --> AO[Save final tree, history, and three separate progress plots]
+    AO --> AP[Copy selected suite to best_ranked_failed_tests]
+    AP --> AQ[CLI exports generated_tests using the same run id]
