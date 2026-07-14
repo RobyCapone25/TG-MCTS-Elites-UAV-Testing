@@ -1,12 +1,13 @@
 sequenceDiagram
     actor User
     participant CLI
-    participant Generator as RandomGenerator
+    participant Generator as TGMCTSElitesGenerator
     participant Mission as MissionPlanMixin
     participant MCTS
     participant Validator as ValidationMixin
     participant Store as PersistenceMixin
     participant Simulator as Aerialist/PX4
+    participant Scoring as ScoringMixin
     participant Archive as MAP-Elites
     participant Plotter as PlottingMixin
     participant Confirm as ConfirmationMixin
@@ -24,25 +25,24 @@ sequenceDiagram
     loop exploration while attempt limit remains
         Generator->>MCTS: tree_policy(root)
         MCTS-->>Generator: candidate node
-        Generator->>Validator: validate candidate
+        Generator->>Validator: validate candidate input
         alt invalid before simulator
             Validator-->>Generator: reasons
             Generator->>Store: log invalid candidate
         else valid candidate
-            Validator-->>Generator: compliant
+            Validator-->>Generator: compliant input
             Generator->>Store: save pending candidate
             Generator->>Store: consume simulator attempt
             Generator->>Simulator: execute test
             alt system error
                 Simulator-->>Generator: exception
                 Generator->>Store: log system error
-            else non-compliant mission
-                Simulator-->>Generator: trajectory and ULG
-                Generator->>Store: remove temporary heavy files
-            else evaluated result
+            else evaluated execution
                 Simulator-->>Generator: trajectory, distances, ULG
+                Generator->>Scoring: point, reward, mission_status, failure_evidence
+                Scoring-->>Generator: evaluated result
                 Generator->>Archive: update elite cell
-                alt official failure
+                alt official distance failure
                     Generator->>Store: save YAML, ULG, overview, XY-time
                 else safe or near miss
                     Generator->>Store: keep metadata only
@@ -62,7 +62,7 @@ sequenceDiagram
             Confirm->>Store: consume attempt
             Confirm->>Simulator: rerun same obstacle scenario
             Simulator-->>Confirm: observed result
-            alt reproduced official failure
+            alt reproduced official distance failure
                 Confirm->>Store: save confirmation failure artifacts
             else not reproduced
                 Confirm->>Store: retain metadata only
@@ -72,6 +72,8 @@ sequenceDiagram
     end
 
     Generator->>Selector: final_suite()
+    Selector->>Selector: allow completed or not_completed official failures
+    Selector->>Selector: reject unknown completion
     Selector->>Selector: robust quality ranking
     Selector->>Selector: geometry and trajectory-DTW diversity
     Selector-->>Generator: selected tests

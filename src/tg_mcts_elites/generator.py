@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
 from typing import Any, Dict, List, Tuple
 
 from aerialist.px4.aerialist_test import AerialistTest
@@ -23,7 +22,7 @@ from .trajectory import TrajectoryMixin
 from .validation import ValidationMixin
 
 
-class RandomGenerator(
+class TGMCTSElitesGenerator(
     GeneratorConstants,
     PersistenceMixin,
     GeometryMixin,
@@ -152,7 +151,7 @@ class RandomGenerator(
         print(f"Mission plan: {getattr(self, 'mission_plan_path', 'unknown')}")
         print(f"Reference waypoints: {len(reference_path)}")
         print("Heavy artifacts: retained only for official failures (d < 1.5 m)")
-        print("Final suite: completed, compliant, diverse official failures only")
+        print("Final suite: compliant, artifact-backed, reproducible proximity failures")
         print("Diversity: obstacle geometry plus realised-trajectory DTW")
         print("Crash handling: pending candidate may be retried if budget remains")
         print("======================================================")
@@ -200,3 +199,9 @@ class RandomGenerator(
         self._write_run_state(status=status, budget=budget)
 
         return final_tests
+
+
+# Backward compatibility for existing imports and external scripts.
+RandomGenerator = TGMCTSElitesGenerator
+
+__all__ = ["TGMCTSElitesGenerator", "RandomGenerator"]

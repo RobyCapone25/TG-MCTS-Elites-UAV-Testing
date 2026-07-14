@@ -107,7 +107,8 @@ class PlottingMixin:
         title_color, status = self._status_style(min_distance)
         fig.suptitle(
             f"TG-MCTS-Elites attempt {index} | node {node_id} | {status}\n"
-            f"min_distance = {min_distance:.3f} m | point = {point} | trajectory = {actual} | mission = {mission_status}",
+            f"min_distance = {min_distance:.3f} m | point = {point} | trajectory = {actual} | "
+            f"mission = {mission_status} | evidence = {getattr(test, 'failure_evidence', 'none')}",
             color=title_color,
             y=0.93,
         )
@@ -175,6 +176,7 @@ class PlottingMixin:
             "min_distance": result.min_distance,
             "problem_type": self._problem_label(result.min_distance),
             "mission_status": result.mission_status,
+            "failure_evidence": result.failure_evidence,
             "compliance_status": result.compliance_status,
             "point": result.point,
             "reward": result.reward,
@@ -221,9 +223,9 @@ class PlottingMixin:
             return "o", "lightgray", "Unevaluated/internal"
         distance = node.eval_result.min_distance
         if distance < self.CRITICAL_PROXIMITY_THRESHOLD:
-            return "x", "red", f"Hard fail: d < {self.CRITICAL_PROXIMITY_THRESHOLD:g} m"
+            return "x", "red", f"Critical proximity: d < {self.CRITICAL_PROXIMITY_THRESHOLD:g} m"
         if distance < self.FAILURE_THRESHOLD:
-            return "x", "red", f"Soft fail: d < {self.FAILURE_THRESHOLD:g} m"
+            return "x", "red", f"Official proximity failure: d < {self.FAILURE_THRESHOLD:g} m"
         if distance < self.NEAR_MISS_THRESHOLD:
             return "^", "orange", f"Near miss: {self.FAILURE_THRESHOLD:g} m <= d < {self.NEAR_MISS_THRESHOLD:g} m"
         return "o", "green", f"Safe: d >= {self.NEAR_MISS_THRESHOLD:g} m"
@@ -285,8 +287,8 @@ class PlottingMixin:
             label_boxes.append(text)
 
         legend_elements = [
-            Line2D([0], [0], marker='x', color='red', linestyle='None', markersize=8, label=f'Hard fail: d < {self.CRITICAL_PROXIMITY_THRESHOLD:g} m'),
-            Line2D([0], [0], marker='x', color='red', linestyle='None', markersize=8, label=f'Soft fail: d < {self.FAILURE_THRESHOLD:g} m'),
+            Line2D([0], [0], marker='x', color='red', linestyle='None', markersize=8, label=f'Critical proximity: d < {self.CRITICAL_PROXIMITY_THRESHOLD:g} m'),
+            Line2D([0], [0], marker='x', color='red', linestyle='None', markersize=8, label=f'Official proximity failure: d < {self.FAILURE_THRESHOLD:g} m'),
             Line2D([0], [0], marker='^', color='orange', linestyle='None', markersize=6, label=f'Near miss: {self.FAILURE_THRESHOLD:g} m <= d < {self.NEAR_MISS_THRESHOLD:g} m'),
             Line2D([0], [0], marker='o', color='green', linestyle='None', markersize=6, label=f'Safe: d >= {self.NEAR_MISS_THRESHOLD:g} m'),
             Line2D([0], [0], marker='o', color='lightgray', linestyle='None', markersize=6, label='Unevaluated/internal'),
@@ -444,6 +446,7 @@ class PlottingMixin:
                 "reward": getattr(test_case, 'reward', None),
                 "problem_type": getattr(test_case, 'problem_type', None),
                 "mission_status": getattr(test_case, 'mission_status', None),
+                "failure_evidence": getattr(test_case, 'failure_evidence', None),
             }
             with open(case_dir / "metadata.json", "w", encoding="utf-8") as stream:
                 json.dump(metadata, stream, indent=2)
@@ -455,9 +458,10 @@ class PlottingMixin:
                 "reward": getattr(test_case, 'reward', ''),
                 "problem_type": getattr(test_case, 'problem_type', ''),
                 "mission_status": getattr(test_case, 'mission_status', ''),
+                "failure_evidence": getattr(test_case, 'failure_evidence', ''),
             })
         with open(Path(self.best_ranked_dir) / "ranking.csv", "w", newline="", encoding="utf-8") as stream:
-            fieldnames = ["rank", "folder", "minimum_distance", "official_point", "reward", "problem_type", "mission_status"]
+            fieldnames = ["rank", "folder", "minimum_distance", "official_point", "reward", "problem_type", "mission_status", "failure_evidence"]
             writer = csv.DictWriter(stream, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(rows)

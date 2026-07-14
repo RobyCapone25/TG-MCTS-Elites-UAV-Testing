@@ -4,13 +4,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tg_mcts_elites.generator import RandomGenerator
+from tg_mcts_elites.generator import TGMCTSElitesGenerator
 from tg_mcts_elites.models import MCTSNode
 
 
 class OutputLayoutTests(unittest.TestCase):
     def test_save_all_outputs_creates_tree_and_named_progress(self) -> None:
-        generator = object.__new__(RandomGenerator)
+        generator = object.__new__(TGMCTSElitesGenerator)
 
         with tempfile.TemporaryDirectory() as directory:
             generator.output_dir = directory

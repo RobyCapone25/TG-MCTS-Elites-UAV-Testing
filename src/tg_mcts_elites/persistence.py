@@ -359,7 +359,10 @@ class PersistenceMixin:
                 result.test.log_file = log_path
                 result.test.plot_file = overview_plot_path
                 result.test.xy_time_plot_file = xy_time_plot_path
-                result.artifacts_saved = bool(yaml_path and log_path and overview_plot_path)
+                result.artifacts_saved = all(
+                    bool(path)
+                    for path in (yaml_path, log_path, overview_plot_path, xy_time_plot_path)
+                )
             except Exception as error:
                 artifact_error = f"{type(error).__name__}: {error}"
                 print(f"[artifact-error] Failure metadata kept, but artifacts were incomplete: {artifact_error}")
@@ -401,6 +404,7 @@ class PersistenceMixin:
             "log_file": log_path or None,
             "artifact_error": artifact_error or None,
             "mission_status": result.mission_status,
+            "failure_evidence": result.failure_evidence,
             "compliance_status": result.compliance_status,
             "saved_at": datetime.now().isoformat(),
         }
@@ -517,6 +521,7 @@ class PersistenceMixin:
             "min_distance": observed.min_distance if observed is not None else None,
             "elapsed_minutes": observed.elapsed_minutes if observed is not None else None,
             "mission_status": observed.mission_status if observed is not None else "noncompliant",
+            "failure_evidence": observed.failure_evidence if observed is not None else "none",
             "error": error or None,
             "saved_at": datetime.now().isoformat(),
         }
@@ -568,12 +573,15 @@ class PersistenceMixin:
                     plot_file = record.get("scenario_plot") or ""
                     xy_time_plot = record.get("xy_time_plot") or ""
                     artifacts_saved = bool(
-                        record.get("artifacts_saved", bool(yaml_file and log_file and plot_file))
+                        record.get(
+                            "artifacts_saved",
+                            bool(yaml_file and log_file and plot_file and xy_time_plot),
+                        )
                     )
 
                     if artifacts_saved and not all(
                         path and os.path.exists(path)
-                        for path in (yaml_file, log_file, plot_file)
+                        for path in (yaml_file, log_file, plot_file, xy_time_plot)
                     ):
                         artifacts_saved = False
 
@@ -593,6 +601,7 @@ class PersistenceMixin:
                         log_file=log_file,
                         plot_file=plot_file,
                         xy_time_plot_file=xy_time_plot,
+                        failure_evidence=record.get("failure_evidence", "none"),
                         minimum_distance=float(record["min_distance"]),
                         official_point=int(record["point"]),
                         reward=float(record["reward"]),
@@ -625,6 +634,7 @@ class PersistenceMixin:
                         distance_samples=distance_samples,
                         elapsed_samples=elapsed_samples,
                         confirmation_attempts=0,
+                        failure_evidence=record.get("failure_evidence", "none"),
                     )
                     self.results.append(result)
                     self.seen_signatures.add(signature)

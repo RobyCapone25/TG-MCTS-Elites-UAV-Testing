@@ -172,7 +172,8 @@ class SelectionMixin:
                 f"failure_rate={self._failure_reproducibility(best):.3f}, "
                 f"samples={len(self._result_point_samples(best))}, reward={best.reward:.4f}, "
                 f"cell={best.cell}, obstacles={len(best.obstacles)}, "
-                f"mission_status={best.mission_status}"
+                f"mission_status={best.mission_status}, "
+                f"failure_evidence={best.failure_evidence}"
             )
         else:
             print("No compliant, completed, artifact-backed official failure was found.")
@@ -209,6 +210,8 @@ class SelectionMixin:
                 f"cell={result.cell}, obstacles={len(result.obstacles)}, "
                 f"nearest_obstacle_distance={geometry_text}, "
                 f"nearest_trajectory_dtw={trajectory_text}, "
+                f"mission_status={result.mission_status}, "
+                f"failure_evidence={result.failure_evidence}, "
                 f"plot={result.scenario_plot}"
             )
 
@@ -219,6 +222,7 @@ class SelectionMixin:
             result.test.mean_min_distance = self._mean_min_distance(result)
             result.test.simulation_attempt = result.simulation_attempt
             result.test.xy_time_plot_file = result.xy_time_plot
+            result.test.failure_evidence = result.failure_evidence
 
         self.selected_results = list(selected)
         return [result.test for result in selected]

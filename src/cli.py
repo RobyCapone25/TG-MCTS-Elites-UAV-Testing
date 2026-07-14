@@ -10,7 +10,7 @@ from pathlib import Path
 
 from decouple import config
 
-from random_generator import RandomGenerator
+from tg_mcts_elites import TGMCTSElitesGenerator
 
 TESTS_FOLDER = Path(config("TESTS_FOLDER", default="./generated_tests/")).expanduser()
 logger = logging.getLogger(__name__)
@@ -105,6 +105,7 @@ def export_ranking(test_cases: list, ranking_dir: Path) -> None:
                 "reward": getattr(test_case, "reward", ""),
                 "problem_type": getattr(test_case, "problem_type", ""),
                 "mission_status": getattr(test_case, "mission_status", ""),
+                "failure_evidence": getattr(test_case, "failure_evidence", ""),
                 "yaml_file": yaml_path.name,
                 "log_file": log_path.name,
                 "overview_plot_file": overview_path.name,
@@ -124,6 +125,7 @@ def export_ranking(test_cases: list, ranking_dir: Path) -> None:
             "reward",
             "problem_type",
             "mission_status",
+            "failure_evidence",
             "yaml_file",
             "log_file",
             "overview_plot_file",
@@ -141,7 +143,7 @@ def main() -> int:
         logger.error("Case-study file not found: %s", args.test)
         return 1
 
-    generator = RandomGenerator(case_study_file=str(args.test))
+    generator = TGMCTSElitesGenerator(case_study_file=str(args.test))
 
     try:
         test_cases = generator.generate(args.budget)

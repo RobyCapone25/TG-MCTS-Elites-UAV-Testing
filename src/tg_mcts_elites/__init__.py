@@ -1,3 +1,3 @@
-from .generator import RandomGenerator
+from .generator import RandomGenerator, TGMCTSElitesGenerator
 
-__all__ = ["RandomGenerator"]
+__all__ = ["TGMCTSElitesGenerator", "RandomGenerator"]

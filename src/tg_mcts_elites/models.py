@@ -31,11 +31,13 @@ class SavedEvaluatedTestCase:
         compliance_status: str,
         trajectory_xy: Optional[List[Tuple[float, float]]] = None,
         xy_time_plot_file: str = "",
+        failure_evidence: str = "none",
     ) -> None:
         self.yaml_file = yaml_file
         self.log_file = log_file
         self.plot_file = plot_file
         self.xy_time_plot_file = xy_time_plot_file
+        self.failure_evidence = failure_evidence
         self.minimum_distance = minimum_distance
         self.official_point = official_point
         self.reward = reward
@@ -75,6 +77,7 @@ class EvalResult:
     distance_samples: List[float] = field(default_factory=list)
     elapsed_samples: List[float] = field(default_factory=list)
     confirmation_attempts: int = 0
+    failure_evidence: str = "none"
 
 
 @dataclass

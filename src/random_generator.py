@@ -1,5 +1,9 @@
-"""Backward-compatible import for the modular TG-MCTS-Elites package."""
+"""Compatibility layer for the original module name.
 
-from tg_mcts_elites.generator import RandomGenerator
+New code should import :class:`TGMCTSElitesGenerator`.  ``RandomGenerator`` is
+kept as an alias so existing competition scripts continue to run unchanged.
+"""
 
-__all__ = ["RandomGenerator"]
+from tg_mcts_elites.generator import RandomGenerator, TGMCTSElitesGenerator
+
+__all__ = ["TGMCTSElitesGenerator", "RandomGenerator"]

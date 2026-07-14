@@ -57,12 +57,15 @@ class SimulationMixin:
             trajectory_xy, trajectory_actual = self._extract_trajectory_xy(test)
             mission_status = self._mission_completion_status(test)
 
-            # A distance threshold is not collision evidence. Until a reliable
-            # collision signal is available, every explicitly non-completed mission
-            # is rejected from the compliant result set.
+            # Mission non-completion is an execution outcome, not a candidate-
+            # compliance violation.  Keep the result so that close, non-completed
+            # executions can guide MCTS and retain evidence.  We still avoid
+            # claiming a collision without an independent collision flag.
+            failure_evidence = self._failure_evidence(min_distance, mission_status)
             if mission_status == "not_completed":
-                raise NonCompliantCandidateError(
-                    "mission did not complete and no independent collision signal is available"
+                print(
+                    "mission_status:not_completed "
+                    f"failure_evidence:{failure_evidence}"
                 )
 
             reward = self._reward(
@@ -84,6 +87,7 @@ class SimulationMixin:
         test.problem_type = self._problem_label(min_distance)
         test.mission_status = mission_status
         test.compliance_status = "compliant"
+        test.failure_evidence = failure_evidence
         test.plot_file = ""
         test.trajectory_xy = list(trajectory_xy) if trajectory_actual else []
 
@@ -105,6 +109,7 @@ class SimulationMixin:
             distance_samples=[min_distance],
             elapsed_samples=[elapsed_minutes],
             confirmation_attempts=0,
+            failure_evidence=failure_evidence,
         )
 
     def _evaluate_with_retries(
