@@ -1,48 +1,57 @@
 flowchart TD
-    A([Start generator]) --> B[Load mission YAML]
-    B --> C{TG_FORCE_NEW = 1?}
+    A[CLI parses case-study YAML and strict attempt budget] --> B[Construct RandomGenerator]
+    B --> C[Load case study with Aerialist]
+    C --> D[Resolve referenced QGroundControl plan]
+    D --> E[Convert geographic waypoints to local coordinates]
+    E --> F[Infer simulator axis/sign mapping from legal-area overlap]
+    F --> G[Create or resume mission-aware run directory]
+    G --> H[Restore results, confirmations, history, and pending candidate]
+    H --> I[Reserve part of sufficiently large budget for confirmation]
+    I --> J{Exploration limit reached?}
 
-    C -->|Yes| D[Create fresh run folder]
-    C -->|No| E{Incomplete checkpoint exists?}
+    J -- No --> K[MCTS select or expand]
+    K --> L[Generate or mutate mission-guided obstacle scenario]
+    L --> M{Pre-execution validation passes?}
+    M -- No --> N[Log invalid candidate without consuming budget]
+    N --> J
+    M -- Yes --> O[Persist pending candidate]
+    O --> P[Consume one simulator-attempt unit]
+    P --> Q[Execute Aerialist/PX4]
+    Q --> R{Execution outcome}
 
-    E -->|Yes| F[Resume previous run]
-    E -->|No| D
+    R -- System error --> S{Retry allowed and budget remains?}
+    S -- Yes --> O
+    S -- No --> J
 
-    D --> G[Initialize MCTS root and MAP-Elites archive]
-    F --> H[Load previous results, history and archive]
+    R -- Mission non-compliant --> T[Log rejection and delete temporary heavy files]
+    T --> J
 
-    G --> I{Budget reached?}
-    H --> I
+    R -- Evaluated --> U[Extract trajectory and minimum distance]
+    U --> V[Compute official point, reward, and MAP-Elites cell]
+    V --> W{Compliant official failure?}
+    W -- Yes --> X[Save YAML, ULG, overview plot, and XY-time plot]
+    W -- No --> Y[Keep metadata only and delete temporary heavy files]
+    X --> Z[Append result metadata]
+    Y --> Z
+    Z --> AA[Update MAP-Elites and backpropagate reward]
+    AA --> AB[Append history and periodically save tree/progress plots]
+    AB --> J
 
-    I -->|Yes| Z[Save final outputs]
-    I -->|No| J[Select node with UCB]
+    J -- Yes --> AC{Confirmation reserve available and failures found?}
+    AC -- Yes --> AD[Rerun leading failures within same global budget]
+    AD --> AE{Confirmation reproduces official failure?}
+    AE -- Yes --> AF[Save separate confirmation failure artifacts]
+    AE -- No --> AG[Keep confirmation metadata only]
+    AF --> AH[Update point, distance, runtime, and reproducibility samples]
+    AG --> AH
+    AH --> AI{Unused total budget remains?}
+    AI -- Yes --> J
+    AI -- No --> AJ[Build final suite]
+    AC -- No --> AJ
 
-    J --> K[Generate search action]
-    K --> L[Create or mutate obstacle configuration]
-
-    L --> M{Rule compliant?}
-    M -->|No| N[Save invalid candidate]
-    N --> I
-
-    M -->|Yes| O[Save pending_candidate.json]
-    O --> P[Run PX4-Avoidance simulation through Aerialist and Docker]
-
-    P --> Q{System error?}
-    Q -->|Yes| R{Retries left?}
-    R -->|Yes| P
-    R -->|No| S[Save system error]
-    S --> I
-
-    Q -->|No| T[Extract trajectory and minimum distance]
-    T --> U[Check mission completion]
-    U --> V[Classify failure type]
-    V --> W[Compute reward]
-    W --> X[Update MCTS statistics]
-    X --> Y[Update MAP-Elites archive and checkpoint]
-    Y --> I
-
-    Z --> Z1[history.csv]
-    Z --> Z2[progress_final.png]
-    Z --> Z3[tree_final.png]
-    Z --> Z4[generated_tests/]
-    Z4 --> END([End])
+    AJ --> AK[Keep completed compliant artifact-backed reproducible failures]
+    AK --> AL[Sort by robust rank key]
+    AL --> AM[Filter by obstacle distance and trajectory DTW]
+    AM --> AN[Save final tree, history, and three separate progress plots]
+    AN --> AO[Copy selected suite to best_ranked_failed_tests]
+    AO --> AP[CLI exports generated_tests using the same run id]

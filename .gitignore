@@ -1,66 +1,46 @@
-# ============================================================
-# Python
-# ============================================================
+# Local configuration
+.env
+.env.*
+!.env.example
 
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 
-# ============================================================
-# Python and Conda environments
-# ============================================================
-
-.env
-.env.save
+# Virtual environments
 .venv/
 venv/
 env/
 .conda/
 
-# Keep the public example configuration.
-!.env.example
-
-# ============================================================
-# Generated simulation artifacts
-# ============================================================
-
-results/
+# Generated simulation and experiment data
 logs/
+results/
 generated_tests/
-
 *.ulg
 *.bag
 *.log
 
-# ============================================================
-# Local backups and temporary files
-# ============================================================
-
+# Local backups and update artifacts
+.*_backup/
+.*_backups/
+.harmonization_backup/
 backups/
-*.tmp
 *.bak
+*.tmp
 *~
-random_generator_backup_*.py
-random_generator_before_tg_mcts_elites.py
 
-# ============================================================
-# Local helper files not needed in the repository
-# ============================================================
-
+# Local publication helper
 GITHUB_UPLOAD_COMMANDS.sh
-tg_mcts_elites_full_uml.mmd
 
-# ============================================================
 # Editors and operating systems
-# ============================================================
-
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
-.harmonization_backup/

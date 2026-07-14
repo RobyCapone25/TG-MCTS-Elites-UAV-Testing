@@ -1,24 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-
-source ~/miniconda3/etc/profile.d/conda.sh 2>/dev/null || source ~/anaconda3/etc/profile.d/conda.sh
-conda activate uav
-
-cd "$PROJECT_ROOT"
-
-mkdir -p results/batch_logs
-
-echo "Starting 100 simulations for mission1 with fresh run..."
-TG_FORCE_NEW=1 python cli.py generate case_studies/mission1.yaml 100 2>&1 | tee results/batch_logs/mission1_100.log
-
-echo "Starting 100 simulations for mission2 with fresh run..."
-TG_FORCE_NEW=1 python cli.py generate case_studies/mission2.yaml 100 2>&1 | tee results/batch_logs/mission2_100.log
-
-echo "Starting 100 simulations for mission3 with fresh run..."
-TG_FORCE_NEW=1 python cli.py generate case_studies/mission3.yaml 100 2>&1 | tee results/batch_logs/mission3_100.log
-
-echo "All 3 missions finished."
+for mission in mission1 mission2 mission3; do
+  echo "============================================================"
+  echo "Running ${mission} with a strict 100-attempt simulator budget"
+  echo "============================================================"
+  TG_FORCE_NEW=1 python cli.py generate "case_studies/${mission}.yaml" 100
+done

@@ -1,786 +1,172 @@
-# TG-MCTS-Elites UAV Test Generator
+# TG-MCTS-Elites UAV Testing
 
-Rule-compliant search-based test generator for the UAV Testing Competition.
+Rule-compliant search-based test generation for the UAV Testing Competition. The project combines mission-guided obstacle generation, Monte Carlo Tree Search, MAP-Elites, strict simulator-attempt accounting, confirmation reruns, and diversity-aware final selection.
 
-This project automatically generates obstacle configurations for PX4-Avoidance missions and searches for scenarios where the UAV collides with, or passes dangerously close to, obstacles.
+## Authors
 
-The generator combines:
+| Name | Email | Affiliation |
+|---|---|---|
+| Roberto Capone | roberto.capone@mail.polimi.it | Politecnico di Milano; CentraleSupélec, Université Paris-Saclay |
+| Guglielmo Cattaneo | guglielmo1.cattaneo@mail.polimi.it | Politecnico di Milano |
 
-- trajectory-guided generation;
-- Monte Carlo Tree Search;
-- MAP-Elites diversity preservation;
-- rule-compliant obstacle validation;
-- crash recovery and checkpointing.
-
----
-
-## System Requirements
-
-A complete setup guide is available in:
-
-```text
-docs/SETUP.md
-```
-
-The project was developed for the following setup:
-
-| Component | Version / Requirement |
-|---|---|
-| Operating system | Linux, tested on Ubuntu |
-| Python | Python 3.10 |
-| Environment manager | Conda |
-| Docker | Required |
-| Host Aerialist package | Git tag `v1.0` in the Conda environment |
-| Aerialist simulator image | `skhatiri/aerialist:2.0` |
-| PX4 / Gazebo / ROS | Provided inside the Aerialist Docker container |
-| Simulation mode | Docker-based execution |
-
-For the standard workflow, the Aerialist Python API is installed in the Conda environment, while PX4, Gazebo, and ROS run inside the pinned Aerialist Docker image. PX4, Gazebo, and ROS do not need to be installed manually on the host.
-
-Minimal setup:
-
-```bash
-conda env create -f environment.yml
-conda activate uav
-
-cp .env.example .env
-docker pull skhatiri/aerialist:2.0
-
-./scripts/check_setup.sh
-```
-
-Then run a quick test:
-
-```bash
-TG_FORCE_NEW=1 python cli.py generate case_studies/mission1.yaml 1
-```
-
----
-
-## Project Goal
-
-The objective is to automatically generate valid obstacle configurations that expose weaknesses in PX4-Avoidance.
-
-Given a mission and a set of generated obstacles, the simulator returns the UAV trajectory. The main quantity optimized by the algorithm is:
-
-```text
-min_distance = minimum distance between the UAV trajectory and all generated obstacles
-```
-
-The search tries to minimize this value while keeping the test case valid.
-
-| Type | Condition | Meaning |
-|---|---:|---|
-| Hard fail | `min_distance < 0.25 m` | Collision or almost-collision |
-| Soft fail | `0.25 m <= min_distance < 1.5 m` | Unsafe close pass |
-| Near miss | `1.5 m <= min_distance < 3.0 m` | Interesting but not officially unsafe |
-| Safe | `min_distance >= 3.0 m` | Valid but less interesting |
-
----
-
-## Folder-Level Documentation
-
-Additional README files are available in the main folders:
-
-| Folder | Documentation |
-|---|---|
-| `src/` | Source-code organization and main algorithm files |
-| `scripts/` | Experiment-running scripts |
-| `case_studies/` | Mission files and case-study descriptions |
-| `docs/` | Setup guide and project documentation |
-| `docs/uml/` | Mermaid UML diagrams |
-
----
-
-## Repository Structure
-
-```text
-.
-├── README.md
-├── Dockerfile
-├── environment.yml
-├── requirements.txt
-├── .env.example
-├── cli.py
-├── src/
-│   ├── __init__.py
-│   ├── cli.py
-│   ├── random_generator.py
-│   └── testcase.py
-├── scripts/
-│   ├── check_setup.sh
-│   └── run_all_100.sh
-├── case_studies/
-│   ├── README.md
-│   ├── mission1.yaml
-│   ├── mission2.yaml
-│   ├── mission3.yaml
-│   ├── mission1.plan
-│   ├── mission2.plan
-│   └── mission3.plan
-└── docs/
-    ├── SETUP.md
-    └── uml/
-        ├── class_diagram.mmd
-        ├── execution_flow.mmd
-        └── sequence_diagram.mmd
-```
-
-The root `cli.py` file is only a launcher.  
-The actual implementation is inside `src/`.
-
----
-
-## Official Test Generation Rules
-
-The generator manipulates only obstacles.
-
-Each generated obstacle is a rotated box defined by:
-
-```text
-position = (x, y, z, r)
-size     = (l, w, h)
-```
-
-where:
-
-| Parameter | Constraint |
-|---|---:|
-| `x` | `-40 <= x <= 30` |
-| `y` | `10 <= y <= 40` |
-| `z` | `z = 0` |
-| `l` | `2 <= l <= 20` |
-| `w` | `2 <= w <= 20` |
-| `h` | `10 < h <= 25` |
-| `r` | `0 <= r <= 90` |
-| Number of obstacles | at most `3` |
-| Overlap | obstacles must not overlap |
-| Feasibility | the layout must not block the mission corridor |
-
-The implementation checks:
-
-- numerical bounds;
-- rotated obstacle corners inside the valid area;
-- rotated box overlap;
-- physical feasibility using grid-based free-space connectivity;
-- mission completion when the trajectory can be extracted.
-
----
-
-## Algorithm Overview
-
-The implemented algorithm is called **TG-MCTS-Elites**.
-
-```text
-TG-MCTS-Elites =
-    Trajectory-Guided initialization
-  + Monte Carlo Tree Search
-  + MAP-Elites archive
-```
-
-The objective is to generate valid but challenging obstacle configurations.
-
----
-
-## 1. Trajectory-Guided Generation
-
-Instead of placing obstacles completely randomly, the generator samples obstacles near expected mission corridors.
-
-It generates several families of scenarios:
-
-- single blocker;
-- two-obstacle gate;
-- staggered obstacle layout.
-
-This increases the probability of finding dangerous scenarios with a limited simulation budget.
-
----
-
-## 2. Monte Carlo Tree Search
-
-The MCTS tree represents successive obstacle modifications.
-
-Each node contains one obstacle configuration.  
-Each edge corresponds to one search action, for example:
-
-- `init_single`
-- `init_gate`
-- `init_staggered`
-- `mutate_local`
-- `mutate_strong`
-- `slide_y`
-- `resize`
-- `rotate`
-- `tighten_gate`
-- `add_blocker`
-
-The selection step uses an Upper Confidence Bound score:
-
-```text
-UCB = mean_reward + C * sqrt(log(parent_visits + 1) / child_visits)
-```
-
-Progressive widening limits how many children can be expanded from a node. This is useful because the obstacle-generation space is continuous.
-
----
-
-## 3. MAP-Elites Archive
-
-MAP-Elites preserves diversity.
-
-Each obstacle configuration is assigned to a behavioral cell:
-
-```text
-cell = (
-    number_of_obstacles,
-    x_position_bin,
-    y_position_bin,
-    compactness_bin,
-    rotation_bin
-)
-```
-
-For each cell, the archive stores the best candidate found so far.
-
-This avoids returning many almost-identical tests.
-
----
-
-## Reward Function
-
-The reward favors:
-
-- official failures;
-- smaller minimum distance;
-- fewer obstacles;
-- mission completion;
-- faster simulations.
-
-The structure is:
-
-```text
-reward =
-    failure_bonus
-  + closeness_reward
-  + simplicity_bonus
-  + mission_bonus
-  - time_penalty
-```
-
-where:
-
-```text
-failure_bonus    = 25 * official_point
-closeness_reward = 5 / (0.2 + min_distance)
-simplicity_bonus = 4 / number_of_obstacles
-```
-
-The official point is:
-
-| Condition | Point |
-|---|---:|
-| `min_distance < 0.25` | 5 |
-| `0.25 <= min_distance < 1.0` | 2 |
-| `1.0 <= min_distance < 1.5` | 1 |
-| `min_distance >= 1.5` | 0 |
-
----
-
-## Main Files
-
-### `src/random_generator.py`
-
-Contains the TG-MCTS-Elites algorithm.
-
-Main responsibilities:
-
-- obstacle generation;
-- rule validation;
-- MCTS search;
-- MAP-Elites archive;
-- simulation execution;
-- crash recovery;
-- result ranking;
-- plot generation.
-
-### `src/testcase.py`
-
-Wrapper around Aerialist/PX4 test execution.
-
-Main responsibilities:
-
-- create executable test cases;
-- launch simulations;
-- extract obstacle distances;
-- save generated YAML files.
-
-### `src/cli.py`
-
-Command-line implementation.
-
-### `cli.py`
-
-Root launcher. It keeps the following command working:
-
-```bash
-python cli.py generate case_studies/mission1.yaml 10
-```
-
-### `scripts/run_all_100.sh`
-
-Runs the full experiment:
-
-```text
-mission1: 100 simulations
-mission2: 100 simulations
-mission3: 100 simulations
-```
-
----
-
-## Installation
-
-The recommended setup is documented in detail in:
-
-```text
-docs/SETUP.md
-```
-
-Minimal installation:
-
-```bash
-conda env create -f environment.yml
-conda activate uav
-
-cp .env.example .env
-docker pull skhatiri/aerialist:2.0
-
-./scripts/check_setup.sh
-```
-
-The `.env` file configures the simulation backend. The default configuration uses Docker:
-
-```text
-AGENT=docker
-SIMULATOR=ros
-ROBOT=px4_ros
-HEADLESS=True
-DOCKER_IMG=skhatiri/aerialist:2.0
-DOCKER_TIMEOUT=1000
-```
-
-The host Conda environment contains the Aerialist Python API. PX4, PX4-Avoidance, Gazebo, and ROS are handled inside the pinned Aerialist Docker image.
-
----
-
-## Verify the Setup
-
-Before launching a simulation, run:
-
-```bash
-conda activate uav
-./scripts/check_setup.sh
-```
-
-The checker validates the operating system, Python version, Conda environment,
-Python imports, Docker permissions, Docker image, `.env`, mission files, and
-source syntax without consuming the simulation budget.
-
-A correct installation ends with:
-
-```text
-SETUP CHECK PASSED
-```
-
----
-
-## Quick Test
-
-Run a small test first:
-
-```bash
-TG_FORCE_NEW=1 python cli.py generate case_studies/mission1.yaml 1
-```
-
-A successful run prints something similar to:
-
-```text
-Rule-compliant Robust TG-MCTS-Elites UAV Test Generator
-Simulation 1/1
-minimum_distance: ...
-1 test cases generated
-```
-
-The output ranking should contain cells with five values, for example:
-
-```text
-cell=(2, 3, 1, 1, 2)
-```
-
-The fifth value is the rotation bin.
-
----
-
-## Full Experiment
-
-Run 100 simulations for each mission:
-
-```bash
-./scripts/run_all_100.sh
-```
-
-This executes:
-
-```bash
-TG_FORCE_NEW=1 python cli.py generate case_studies/mission1.yaml 100
-TG_FORCE_NEW=1 python cli.py generate case_studies/mission2.yaml 100
-TG_FORCE_NEW=1 python cli.py generate case_studies/mission3.yaml 100
-```
-
-Total number of simulations:
-
-```text
-100 x 3 = 300 simulations
-```
-
----
-
-## Crash Recovery
-
-The generator is designed to survive crashes.
-
-Before each simulation, the current candidate is saved in:
-
-```text
-pending_candidate.json
-```
-
-Successful simulations are saved in:
-
-```text
-results.jsonl
-history.jsonl
-```
-
-If the PC, Docker container, or simulator crashes, resume the interrupted mission without `TG_FORCE_NEW=1`.
-
-Example:
+## Competition command
 
 ```bash
 python cli.py generate case_studies/mission1.yaml 100
 ```
 
-The value `100` is interpreted as the total target budget, not 100 additional simulations.
-
-For example, if 37 simulations were completed before the crash, the resumed run continues from simulation 38 and stops at 100.
-
----
-
-## Outputs
-
-Each run creates a folder:
+The interface is:
 
 ```text
-results/tg_mcts_elites/<run_id>/
+generate <case-study-yaml> <simulator-attempt-budget>
 ```
 
-Main outputs:
+The second argument is a strict upper bound on real simulator executions. Successful runs, retries, system-error attempts, rejected post-execution tests, and confirmation reruns all consume one budget unit.
+
+## Failure and score semantics
+
+| Minimum UAV-obstacle distance | Official point |
+|---:|---:|
+| `d < 0.25 m` | 5 |
+| `0.25 <= d < 1.0 m` | 2 |
+| `1.0 <= d < 1.5 m` | 1 |
+| `d >= 1.5 m` | 0 |
+
+A test is an official failure when `d < 1.5 m`. The implementation labels `d < 0.25 m` as `critical_proximity`; it does not claim a collision without an independent collision signal.
+
+## Algorithm overview
+
+TG-MCTS-Elites performs the following steps:
+
+1. parse the QGroundControl `.plan` referenced by the case-study YAML;
+2. infer the simulator-frame mapping that makes the mission intersect the legal obstacle domain;
+3. generate mission-guided single-obstacle, gate, and staggered scenarios;
+4. explore mutations with MCTS, UCB selection, and progressive widening;
+5. preserve quality and behavioral coverage with MAP-Elites;
+6. execute each candidate under a strict global simulator-attempt budget;
+7. retain heavy artifacts only for compliant official failures;
+8. rerun leading failures for robustness confirmation when the budget permits;
+9. rank failures using observed score, reproducibility, distance, simplicity, and runtime;
+10. filter the final suite by obstacle-geometry distance and trajectory-DTW diversity.
+
+See [`docs/ALGORITHM.md`](docs/ALGORITHM.md) for the complete technical description.
+
+## Source architecture
 
 ```text
-history.csv
-progress_final.png
-tree_final.png
-scenario_plots/
-checkpoint/results.jsonl
-checkpoint/history.jsonl
-checkpoint/system_errors.csv
-checkpoint/invalid_candidates.csv
+src/
+├── cli.py
+├── testcase.py
+├── random_generator.py          # backward-compatible import
+└── tg_mcts_elites/
+    ├── generator.py             # high-level orchestration
+    ├── config.py                # constants and thresholds
+    ├── models.py                # search-tree and result data structures
+    ├── mission.py               # YAML/.plan parsing and frame inference
+    ├── geometry.py              # rotated-box geometry
+    ├── validation.py            # competition and feasibility checks
+    ├── scenarios.py             # initialization and mutation operators
+    ├── archive.py               # MAP-Elites descriptors and archive
+    ├── scoring.py               # official points, reward, robust ranking
+    ├── mcts.py                  # selection, expansion, and backup
+    ├── trajectory.py            # trajectory and mission-completion extraction
+    ├── simulation.py            # execution, retries, and budget accounting
+    ├── confirmation.py          # failure confirmation reruns
+    ├── persistence.py           # checkpoints and artifact retention
+    ├── plotting.py              # trajectory, tree, and progress plots
+    └── selection.py             # diverse final-suite selection
 ```
 
-The final generated tests are saved in:
+`src/random_generator.py` only preserves the original import:
+
+```python
+from random_generator import RandomGenerator
+```
+
+## Output structure
+
+A Mission 1 run receives a meaningful identifier such as:
 
 ```text
-generated_tests/<run_id>/
+mission_1_2026-07-14_12-30-00-123456
 ```
 
-Each selected test can include:
+The complete experiment folder is:
 
 ```text
-test_i.yaml
-test_i.ulg
-test_i.png
+results/tg_mcts_elites/<run-id>/
+├── all_failed_cases/
+├── best_ranked_failed_tests/
+├── checkpoint/
+├── history.csv
+├── mcts_tree.png
+├── tree_final.png
+├── progress_min_distance.png
+├── progress_reward.png
+├── progress_reward_vs_distance.png
+└── run_state.json
 ```
 
----
-
-## UML Diagrams
-
-The UML diagrams are stored as Mermaid source files in:
-
-- `docs/uml/class_diagram.mmd`
-- `docs/uml/execution_flow.mmd`
-- `docs/uml/sequence_diagram.mmd`
-
-They are also rendered directly below by GitHub.
-
-### Editing with Mermaid Live Editor
-
-To edit a diagram visually:
-
-1. Open the corresponding `.mmd` file.
-2. Copy its content.
-3. Paste it into Mermaid Live Editor.
-4. Export the diagram again if a PNG or SVG version is needed.
-5. Commit the updated `.mmd` source file.
-
----
-
-### Class Diagram
-
-```mermaid
-classDiagram
-    class RandomGenerator {
-        +generate(budget)
-        +setup_run()
-        +resume_run()
-        +tree_policy()
-        +expand_node()
-        +simulate_candidate()
-        +validate_candidate()
-        +update_archive()
-        +save_outputs()
-    }
-
-    class MCTSNode {
-        +candidate
-        +parent
-        +children
-        +visits
-        +total_reward
-        +mean_reward()
-        +ucb_score()
-    }
-
-    class EvalResult {
-        +min_distance
-        +reward
-        +official_point
-        +failure_type
-        +mission_status
-        +cell
-        +obstacles
-    }
-
-    class SavedEvaluatedTestCase {
-        +test
-        +result
-        +yaml_file
-        +ulg_file
-        +plot_file
-    }
-
-    class TestCase {
-        +obstacles
-        +mission
-        +execute()
-        +save_yaml()
-    }
-
-    class AerialistPX4 {
-        +run_simulation()
-        +extract_trajectory()
-        +compute_min_distance()
-    }
-
-    class MAPElitesArchive {
-        +cell_descriptor()
-        +insert_if_elite()
-        +best_per_cell
-    }
-
-    class CheckpointManager {
-        +pending_candidate_json
-        +results_jsonl
-        +history_jsonl
-        +system_errors_csv
-        +invalid_candidates_csv
-        +run_state_json
-    }
-
-    RandomGenerator --> MCTSNode
-    RandomGenerator --> EvalResult
-    RandomGenerator --> SavedEvaluatedTestCase
-    RandomGenerator --> MAPElitesArchive
-    RandomGenerator --> CheckpointManager
-    RandomGenerator --> TestCase
-
-    TestCase --> AerialistPX4
-    SavedEvaluatedTestCase --> TestCase
-    SavedEvaluatedTestCase --> EvalResult
-```
-
----
-
-### Execution Flow
-
-```mermaid
-flowchart TD
-    A([Start generator]) --> B[Load mission YAML]
-    B --> C{TG_FORCE_NEW = 1?}
-
-    C -->|Yes| D[Create fresh run folder]
-    C -->|No| E{Incomplete checkpoint exists?}
-
-    E -->|Yes| F[Resume previous run]
-    E -->|No| D
-
-    D --> G[Initialize MCTS root and MAP-Elites archive]
-    F --> H[Load previous results, history and archive]
-
-    G --> I{Budget reached?}
-    H --> I
-
-    I -->|Yes| Z[Save final outputs]
-    I -->|No| J[Select node with UCB]
-
-    J --> K[Generate search action]
-    K --> L[Create or mutate obstacle configuration]
-
-    L --> M{Rule compliant?}
-    M -->|No| N[Save invalid candidate]
-    N --> I
-
-    M -->|Yes| O[Save pending_candidate.json]
-    O --> P[Run PX4-Avoidance simulation through Aerialist and Docker]
-
-    P --> Q{System error?}
-    Q -->|Yes| R{Retries left?}
-    R -->|Yes| P
-    R -->|No| S[Save system error]
-    S --> I
-
-    Q -->|No| T[Extract trajectory and minimum distance]
-    T --> U[Check mission completion]
-    U --> V[Classify failure type]
-    V --> W[Compute reward]
-    W --> X[Update MCTS statistics]
-    X --> Y[Update MAP-Elites archive and checkpoint]
-    Y --> I
-
-    Z --> Z1[history.csv]
-    Z --> Z2[progress_final.png]
-    Z --> Z3[tree_final.png]
-    Z --> Z4[generated_tests/]
-    Z4 --> END([End])
-```
-
----
-
-### Sequence Diagram
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant CLI as cli.py
-    participant RG as RandomGenerator
-    participant MCTS as MCTS Tree
-    participant VAL as Rule Validator
-    participant SIM as Aerialist/PX4 Docker
-    participant ARCH as MAP-Elites Archive
-    participant CKPT as Checkpoint Files
-
-    User->>CLI: python cli.py generate mission.yaml budget
-    CLI->>RG: generate(budget)
-
-    RG->>CKPT: check run state
-
-    alt resume available
-        CKPT-->>RG: load previous results and history
-    else fresh run
-        RG->>RG: create new run folder
-    end
-
-    loop until budget reached
-        RG->>MCTS: select node using UCB
-        MCTS-->>RG: candidate node
-
-        RG->>RG: generate or mutate obstacles
-        RG->>VAL: validate candidate
-
-        alt invalid candidate
-            VAL-->>RG: non-compliant
-            RG->>CKPT: save invalid_candidates.csv
-        else valid candidate
-            VAL-->>RG: compliant
-            RG->>CKPT: save pending_candidate.json
-
-            RG->>SIM: execute test case
-
-            alt simulator or system error
-                SIM-->>RG: error
-                RG->>CKPT: save system_errors.csv
-                RG->>SIM: retry if allowed
-            else successful simulation
-                SIM-->>RG: trajectory and min_distance
-                RG->>RG: classify failure type
-                RG->>RG: compute reward
-                RG->>MCTS: backpropagate reward
-                RG->>ARCH: update elite cell
-                RG->>CKPT: append results and history
-                RG->>CKPT: clear pending candidate
-            end
-        end
-    end
-
-    RG->>CKPT: save final CSV and plots
-    RG-->>CLI: return selected test cases
-    CLI-->>User: generated tests saved
-```
-
----
-
-## Notes on Aerialist Logs
-
-Sometimes Aerialist prints:
+Each retained failure contains:
 
 ```text
-aerialist.px4.docker_agent - ERROR
+test.yaml
+flight.ulg
+trajectory_overview.png
+trajectory_xy_time.png
 ```
 
-This is not necessarily a failed simulation.
+`trajectory_overview.png` contains `X(t)`, `Y(t)`, `Z(t)`, and the planar `X-Y` view. `trajectory_xy_time.png` contains the three-dimensional `(X,Y,t)` trajectory.
 
-If the output also contains:
+The challenge-compatible ranking is exported under the same run identifier:
 
 ```text
-entry - INFO - test finished
-testcase - INFO - test finished
-minimum_distance: ...
+generated_tests/<same-run-id>/
+├── ranking.csv
+├── test_0.yaml
+├── test_0.ulg
+├── test_0_overview.png
+└── test_0_xy_time.png
 ```
 
-then the simulation completed successfully.
+See [`docs/OUTPUTS.md`](docs/OUTPUTS.md) for the complete retention policy.
 
----
+## Reproducibility and recovery
 
-## What Is Not Uploaded to GitHub
+Fresh deterministic run:
 
-The following files are intentionally ignored:
-
-```text
-results/
-logs/
-generated_tests/
-*.ulg
-__pycache__/
-random_generator_backup_*.py
-.env
+```bash
+TG_SEED=12345 TG_FORCE_NEW=1 \
+python cli.py generate case_studies/mission1.yaml 50
 ```
 
-These files are large, generated locally, private, or only useful for debugging.
+Resume an incomplete run by omitting `TG_FORCE_NEW=1`:
 
----
+```bash
+python cli.py generate case_studies/mission1.yaml 50
+```
 
-## Context
+The supplied value remains the total attempt limit, not an additional budget.
 
-This project was developed for the UAV Testing Competition using PX4-Avoidance and Aerialist.
+## Tests
 
-It focuses on automated obstacle-based test-case generation for UAV simulation.
+```bash
+PYTHONPATH="$PWD/src" python -m unittest discover -s tests -v
+```
+
+The tests cover official score boundaries, mission-plan conversion, frame inference, geometric and trajectory diversity, confirmation-aware ranking, output generation, and critical method contracts.
+
+## Scripts
+
+```bash
+./scripts/run_mission1_50.sh
+./scripts/run_all_100.sh
+```
+
+## Documentation
+
+- `docs/ALGORITHM.md`: algorithm, reward, archive, confirmation, and final selection;
+- `docs/OUTPUTS.md`: run naming, retained artifacts, ranking folders, and plots;
+- `docs/uml/`: Mermaid class, flow, and sequence diagrams;
+- `docs/SETUP.md`: existing setup and system-requirement documentation, intentionally unchanged by this update;
+- `benchmark/`: empty versioned placeholder reserved for the future benchmark implementation.

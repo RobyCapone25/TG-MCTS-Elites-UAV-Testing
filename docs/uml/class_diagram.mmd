@@ -1,79 +1,167 @@
 classDiagram
     class RandomGenerator {
-        +generate(budget)
-        +setup_run()
-        +resume_run()
-        +tree_policy()
-        +expand_node()
-        +simulate_candidate()
-        +validate_candidate()
-        +update_archive()
-        +save_outputs()
+        +generate(budget) List
+        -reset_search_state()
+        -process_evaluated_node(node, result, budget)
+        -run_search_phase(root, attempt_limit, total_budget)
     }
 
-    class MCTSNode {
-        +candidate
-        +parent
-        +children
-        +visits
-        +total_reward
-        +mean_reward()
-        +ucb_score()
+    class GeneratorConstants {
+        +FAILURE_THRESHOLD
+        +FINAL_MIN_SCENARIO_DISTANCE
+        +FINAL_MIN_TRAJECTORY_DTW
+        +OUTPUT_SNAPSHOT_INTERVAL
     }
 
-    class EvalResult {
-        +min_distance
-        +reward
-        +official_point
-        +failure_type
-        +mission_status
-        +cell
-        +obstacles
+    class PersistenceMixin {
+        -new_run_id() str
+        -setup_run_directory(budget)
+        -consume_simulation_attempt(budget) int
+        -save_result_checkpoint(result, attempt, node)
+        -save_confirmation_failure_artifacts(result, attempt, node, base_attempt)
+        -load_previous_results()
     }
 
-    class SavedEvaluatedTestCase {
-        +test
-        +result
-        +yaml_file
-        +ulg_file
-        +plot_file
+    class MissionPlanMixin {
+        -resolve_mission_plan_path() Path
+        -mission_reference_path() List
+        -select_simulator_frame(path) Tuple
+        -reference_pose_samples() List
+    }
+
+    class GeometryMixin {
+        -rotated_corners(obstacle) List
+        -rotated_boxes_overlap(first, second) bool
+    }
+
+    class ValidationMixin {
+        -validate_test_case_rules(obstacles) Tuple
+        -has_physical_feasible_corridor(obstacles) bool
+    }
+
+    class ScenarioMixin {
+        -single_blocker() List
+        -gate_scenario() List
+        -staggered_scenario() List
+        -apply_action(obstacles, action) List
+    }
+
+    class ArchiveMixin {
+        -elite_cell(obstacles) Tuple
+        -update_elites(result)
+    }
+
+    class ScoringMixin {
+        -official_point(distance) int
+        -reward(distance, obstacles, time, status) float
+        -final_rank_key(result) Tuple
+        -failure_reproducibility(result) float
+    }
+
+    class MCTSMixin {
+        -ucb_score(parent, child) float
+        -progressive_widening_limit(node) int
+        -tree_policy(root) MCTSNode
+        -backup(node, reward)
+    }
+
+    class TrajectoryMixin {
+        -extract_trajectory_xy(test) Tuple
+        -extract_trajectory_series(test) Tuple
+        -mission_completion_status(test) str
+    }
+
+    class SimulationMixin {
+        -run_simulation_once(node, attempt, budget) EvalResult
+        -evaluate_with_retries(node, budget) EvalResult
+    }
+
+    class ConfirmationMixin {
+        -confirmation_reserve(budget) int
+        -confirmation_candidates() List
+        -confirm_candidate_once(base, budget) bool
+        -confirm_top_failures(budget) bool
+    }
+
+    class PlottingMixin {
+        -save_scenario_plot(...)
+        -save_xy_time_plot(...)
+        -save_tree_plot(root)
+        -save_progress_plots()
+        -save_all_outputs(root)
+        -export_best_ranked_summary(test_cases)
+    }
+
+    class SelectionMixin {
+        -scenario_distance(first, second) float
+        -trajectory_distance(first, second) float
+        -scenarios_too_similar(first, second) bool
+        -final_suite() List
     }
 
     class TestCase {
+        +execute() Trajectory
+        +get_distances() List
+        +save_yaml(path)
+        +log_file
+        +plot_file
+        +xy_time_plot_file
+    }
+
+    class EvalResult {
         +obstacles
-        +mission
-        +execute()
-        +save_yaml()
+        +test
+        +min_distance
+        +point
+        +reward
+        +cell
+        +mission_status
+        +artifacts_saved
+        +scenario_plot
+        +xy_time_plot
+        +point_samples
+        +distance_samples
+        +confirmation_attempts
     }
 
-    class AerialistPX4 {
-        +run_simulation()
-        +extract_trajectory()
-        +compute_min_distance()
+    class MCTSNode {
+        +obstacles
+        +parent
+        +children
+        +node_id
+        +visits
+        +total_reward
+        +best_reward
+        +eval_result
+        +mean_reward() float
     }
 
-    class MAPElitesArchive {
-        +cell_descriptor()
-        +insert_if_elite()
-        +best_per_cell
+    class SavedEvaluatedTestCase {
+        +yaml_file
+        +log_file
+        +plot_file
+        +xy_time_plot_file
+        +save_yaml(path)
     }
 
-    class CheckpointManager {
-        +pending_candidate_json
-        +results_jsonl
-        +history_jsonl
-        +system_errors_csv
-        +invalid_candidates_csv
-        +run_state_json
-    }
+    GeneratorConstants <|-- RandomGenerator
+    PersistenceMixin <|-- RandomGenerator
+    GeometryMixin <|-- RandomGenerator
+    MissionPlanMixin <|-- RandomGenerator
+    ValidationMixin <|-- RandomGenerator
+    ScenarioMixin <|-- RandomGenerator
+    ArchiveMixin <|-- RandomGenerator
+    ScoringMixin <|-- RandomGenerator
+    MCTSMixin <|-- RandomGenerator
+    TrajectoryMixin <|-- RandomGenerator
+    PlottingMixin <|-- RandomGenerator
+    SimulationMixin <|-- RandomGenerator
+    ConfirmationMixin <|-- RandomGenerator
+    SelectionMixin <|-- RandomGenerator
 
     RandomGenerator --> MCTSNode
     RandomGenerator --> EvalResult
-    RandomGenerator --> SavedEvaluatedTestCase
-    RandomGenerator --> MAPElitesArchive
-    RandomGenerator --> CheckpointManager
-    RandomGenerator --> TestCase
-
-    TestCase --> AerialistPX4
-    SavedEvaluatedTestCase --> TestCase
-    SavedEvaluatedTestCase --> EvalResult
+    SimulationMixin --> TestCase
+    PersistenceMixin --> SavedEvaluatedTestCase
+    PersistenceMixin --> EvalResult
+    SelectionMixin --> EvalResult

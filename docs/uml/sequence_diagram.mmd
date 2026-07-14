@@ -1,56 +1,82 @@
 sequenceDiagram
     actor User
-    participant CLI as cli.py
-    participant RG as RandomGenerator
-    participant MCTS as MCTS Tree
-    participant VAL as Rule Validator
-    participant SIM as Aerialist/PX4 Docker
-    participant ARCH as MAP-Elites Archive
-    participant CKPT as Checkpoint Files
+    participant CLI
+    participant Generator as RandomGenerator
+    participant Mission as MissionPlanMixin
+    participant MCTS
+    participant Validator as ValidationMixin
+    participant Store as PersistenceMixin
+    participant Simulator as Aerialist/PX4
+    participant Archive as MAP-Elites
+    participant Plotter as PlottingMixin
+    participant Confirm as ConfirmationMixin
+    participant Selector as SelectionMixin
 
-    User->>CLI: python cli.py generate mission.yaml budget
-    CLI->>RG: generate(budget)
+    User->>CLI: generate case-study.yaml budget
+    CLI->>Generator: construct(case-study)
+    Generator->>Mission: parse YAML and referenced .plan
+    Mission->>Mission: evaluate eight frame mappings
+    Mission-->>Generator: local reference path
+    CLI->>Generator: generate(budget)
+    Generator->>Store: create or resume mission-aware run
+    Store-->>Generator: restored results/history/confirmations
 
-    RG->>CKPT: check run state
-
-    alt resume available
-        CKPT-->>RG: load previous results and history
-    else fresh run
-        RG->>RG: create new run folder
-    end
-
-    loop until budget reached
-        RG->>MCTS: select node using UCB
-        MCTS-->>RG: candidate node
-
-        RG->>RG: generate or mutate obstacles
-        RG->>VAL: validate candidate
-
-        alt invalid candidate
-            VAL-->>RG: non-compliant
-            RG->>CKPT: save invalid_candidates.csv
+    loop exploration while attempt limit remains
+        Generator->>MCTS: tree_policy(root)
+        MCTS-->>Generator: candidate node
+        Generator->>Validator: validate candidate
+        alt invalid before simulator
+            Validator-->>Generator: reasons
+            Generator->>Store: log invalid candidate
         else valid candidate
-            VAL-->>RG: compliant
-            RG->>CKPT: save pending_candidate.json
-
-            RG->>SIM: execute test case
-
-            alt simulator or system error
-                SIM-->>RG: error
-                RG->>CKPT: save system_errors.csv
-                RG->>SIM: retry if allowed
-            else successful simulation
-                SIM-->>RG: trajectory and min_distance
-                RG->>RG: classify failure type
-                RG->>RG: compute reward
-                RG->>MCTS: backpropagate reward
-                RG->>ARCH: update elite cell
-                RG->>CKPT: append results and history
-                RG->>CKPT: clear pending candidate
+            Validator-->>Generator: compliant
+            Generator->>Store: save pending candidate
+            Generator->>Store: consume simulator attempt
+            Generator->>Simulator: execute test
+            alt system error
+                Simulator-->>Generator: exception
+                Generator->>Store: log system error
+            else non-compliant mission
+                Simulator-->>Generator: trajectory and ULG
+                Generator->>Store: remove temporary heavy files
+            else evaluated result
+                Simulator-->>Generator: trajectory, distances, ULG
+                Generator->>Archive: update elite cell
+                alt official failure
+                    Generator->>Store: save YAML, ULG, overview, XY-time
+                else safe or near miss
+                    Generator->>Store: keep metadata only
+                end
+                Generator->>MCTS: backpropagate reward
+                Generator->>Store: append result and history
+                opt snapshot interval reached
+                    Generator->>Plotter: save history, tree, and progress plots
+                end
             end
         end
     end
 
-    RG->>CKPT: save final CSV and plots
-    RG-->>CLI: return selected test cases
-    CLI-->>User: generated tests saved
+    opt confirmation budget
+        Generator->>Confirm: confirm top failures
+        loop available confirmation attempts
+            Confirm->>Store: consume attempt
+            Confirm->>Simulator: rerun same obstacle scenario
+            Simulator-->>Confirm: observed result
+            alt reproduced official failure
+                Confirm->>Store: save confirmation failure artifacts
+            else not reproduced
+                Confirm->>Store: retain metadata only
+            end
+            Confirm->>Store: append confirmation observation
+        end
+    end
+
+    Generator->>Selector: final_suite()
+    Selector->>Selector: robust quality ranking
+    Selector->>Selector: geometry and trajectory-DTW diversity
+    Selector-->>Generator: selected tests
+    Generator->>Plotter: save final history, tree, and three progress figures
+    Generator-->>CLI: selected tests and run id
+    CLI->>Plotter: export best_ranked_failed_tests
+    CLI->>CLI: export generated_tests same run id
+    CLI-->>User: print output paths

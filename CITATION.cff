@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+title: TG-MCTS-Elites UAV Testing
+message: Please cite this software using the metadata in this file.
+type: software
+authors:
+  - family-names: Capone
+    given-names: Roberto
+    email: roberto.capone@mail.polimi.it
+    affiliation: Politecnico di Milano; CentraleSupélec, Université Paris-Saclay
+  - family-names: Cattaneo
+    given-names: Guglielmo
+    email: guglielmo1.cattaneo@mail.polimi.it
+    affiliation: Politecnico di Milano
+repository-code: https://github.com/RobyCapone25/TG-MCTS-Elites-UAV-Testing
+version: 0.1.0
