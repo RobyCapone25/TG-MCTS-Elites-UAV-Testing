@@ -78,8 +78,15 @@ class ArchiveMixin:
 
         return (n_bin, x_bin, y_bin, c_bin, r_bin)
 
-    def _update_elites(self, result: EvalResult) -> None:
+    def _update_elites(self, result: EvalResult) -> bool:
         old = self.elites.get(result.cell)
-
-        if old is None or self._sort_key(result) > self._sort_key(old):
+        updated = old is None or self._sort_key(result) > self._sort_key(old)
+        if updated:
             self.elites[result.cell] = result
+            benchmark = getattr(self, "benchmark", None)
+            if benchmark is not None:
+                benchmark.record_archive_update(
+                    result=result,
+                    replaced_existing_elite=old is not None,
+                )
+        return updated

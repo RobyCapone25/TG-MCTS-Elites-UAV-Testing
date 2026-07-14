@@ -9,7 +9,7 @@ import re
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from aerialist.px4.obstacle import Obstacle
 
@@ -75,6 +75,7 @@ class PersistenceMixin:
         self.results_jsonl_path = os.path.join(self.checkpoint_dir, "results.jsonl")
         self.history_jsonl_path = os.path.join(self.checkpoint_dir, "history.jsonl")
         self.confirmations_jsonl_path = os.path.join(self.checkpoint_dir, "confirmations.jsonl")
+        self.tree_state_path = os.path.join(self.checkpoint_dir, "tree_state.json")
         self.system_errors_path = os.path.join(self.checkpoint_dir, "system_errors.csv")
         self.invalid_candidates_path = os.path.join(self.checkpoint_dir, "invalid_candidates.csv")
         self.run_state_path = os.path.join(self.output_dir, "run_state.json")
@@ -85,12 +86,17 @@ class PersistenceMixin:
         os.makedirs(self.failure_cases_dir, exist_ok=True)
         os.makedirs(self.best_ranked_dir, exist_ok=True)
 
-    def _find_resume_dir(self) -> Optional[str]:
+    def _find_resume_dir(self, budget: Optional[int] = None) -> Optional[str]:
         if os.environ.get("TG_FORCE_NEW", "0") == "1":
             return None
 
+        namespace = getattr(self, "RESULTS_NAMESPACE", "tg_mcts_elites")
+        algorithm_id = getattr(self, "ALGORITHM_ID", "tg_mcts_elites")
+        requested_seed = os.environ.get("TG_SEED", "").strip()
+        strict_budget = os.environ.get("TG_RESUME_STRICT_BUDGET", "0") == "1"
+
         candidates = sorted(
-            glob.glob(os.path.join("results", "tg_mcts_elites", "*")),
+            glob.glob(os.path.join("results", namespace, "*")),
             key=os.path.getmtime,
             reverse=True,
         )
@@ -103,15 +109,25 @@ class PersistenceMixin:
                 with open(state_path, "r", encoding="utf-8") as stream:
                     state = json.load(stream)
                 same_case = state.get("case_study_basename") == self._normalised_case_name()
+                same_algorithm = state.get("algorithm_id", algorithm_id) == algorithm_id
+                same_seed = (
+                    not requested_seed
+                    or int(state.get("seed", -1)) == int(requested_seed)
+                )
+                same_budget = (
+                    not strict_budget
+                    or budget is None
+                    or int(state.get("budget", -1)) == int(budget)
+                )
                 incomplete = state.get("status") != "completed"
-                if same_case and incomplete:
+                if same_case and same_algorithm and same_seed and same_budget and incomplete:
                     return folder
             except (OSError, ValueError, TypeError):
                 continue
         return None
 
     def _setup_run_directory(self, budget: int) -> None:
-        resume_dir = self._find_resume_dir()
+        resume_dir = self._find_resume_dir(budget)
         previous_state: Dict = {}
         self.mission_label = self._mission_label_from_case_name()
 
@@ -129,7 +145,7 @@ class PersistenceMixin:
         else:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
             self.run_id = f"{self.mission_label}_{timestamp}"
-            self.output_dir = os.path.join("results", "tg_mcts_elites", self.run_id)
+            self.output_dir = os.path.join("results", getattr(self, "RESULTS_NAMESPACE", "tg_mcts_elites"), self.run_id)
 
         self._configure_run_paths()
         self._ensure_output_dirs()
@@ -153,9 +169,23 @@ class PersistenceMixin:
 
         self._write_run_state(status="running", budget=budget)
 
+    def _atomic_write_json(self, path: str | Path, payload: Any) -> None:
+        destination = Path(path)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = destination.with_name(destination.name + ".tmp")
+        with temporary.open("w", encoding="utf-8") as stream:
+            json.dump(payload, stream, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, destination)
+
     def _write_run_state(self, status: str, budget: int) -> None:
         state = {
             "status": status,
+            "algorithm_id": getattr(self, "ALGORITHM_ID", "tg_mcts_elites"),
+            "algorithm_name": getattr(self, "ALGORITHM_NAME", "TG-MCTS-Elites"),
+            "results_namespace": getattr(self, "RESULTS_NAMESPACE", "tg_mcts_elites"),
             "case_study_file": self.case_study_file,
             "case_study_basename": self._normalised_case_name(),
             "mission_label": getattr(self, "mission_label", self._mission_label_from_case_name()),
@@ -173,10 +203,7 @@ class PersistenceMixin:
             "final_min_trajectory_dtw": self.FINAL_MIN_TRAJECTORY_DTW,
             "updated_at": datetime.now().isoformat(),
         }
-        with open(self.run_state_path, "w", encoding="utf-8") as stream:
-            json.dump(state, stream, indent=2)
-            stream.flush()
-            os.fsync(stream.fileno())
+        self._atomic_write_json(self.run_state_path, state)
 
     def _consume_simulation_attempt(self, budget: int) -> int:
         if self.simulation_attempts >= budget:
@@ -215,6 +242,197 @@ class PersistenceMixin:
             ),
         )
 
+    def _random_state_to_json(self, value: Any) -> Any:
+        if isinstance(value, tuple):
+            return [self._random_state_to_json(item) for item in value]
+        if isinstance(value, list):
+            return [self._random_state_to_json(item) for item in value]
+        return value
+
+    def _random_state_from_json(self, value: Any) -> Any:
+        if isinstance(value, list):
+            return tuple(self._random_state_from_json(item) for item in value)
+        return value
+
+    def _tree_nodes(self, root: MCTSNode) -> List[MCTSNode]:
+        nodes: List[MCTSNode] = []
+        stack = [root]
+        seen = set()
+        while stack:
+            node = stack.pop()
+            if node.node_id in seen:
+                continue
+            seen.add(node.node_id)
+            nodes.append(node)
+            stack.extend(reversed(node.children))
+        return nodes
+
+    def _save_tree_checkpoint(self, root: MCTSNode) -> None:
+        records = []
+        for node in self._tree_nodes(root):
+            records.append(
+                {
+                    "node_id": node.node_id,
+                    "parent_id": node.parent.node_id if node.parent is not None else None,
+                    "action": node.action,
+                    "obstacles": [self._obstacle_to_dict(obs) for obs in node.obstacles],
+                    "visits": node.visits,
+                    "total_reward": node.total_reward,
+                    "best_reward": node.best_reward,
+                    "eval_simulation_attempt": (
+                        node.eval_result.simulation_attempt
+                        if node.eval_result is not None
+                        else None
+                    ),
+                }
+            )
+        payload = {
+            "algorithm_id": getattr(self, "ALGORITHM_ID", "tg_mcts_elites"),
+            "case_study_basename": self._normalised_case_name(),
+            "seed": self.seed,
+            "root_node_id": root.node_id,
+            "random_state": self._random_state_to_json(random.getstate()),
+            "nodes": records,
+            "saved_at": datetime.now().isoformat(),
+        }
+        self._atomic_write_json(self.tree_state_path, payload)
+
+    def _load_tree_checkpoint(self) -> Optional[MCTSNode]:
+        path = Path(self.tree_state_path)
+        if not path.is_file():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if payload.get("case_study_basename") != self._normalised_case_name():
+                return None
+            if payload.get("algorithm_id") != getattr(self, "ALGORITHM_ID", "tg_mcts_elites"):
+                return None
+            if int(payload.get("seed", self.seed)) != int(self.seed):
+                return None
+            records = payload.get("nodes", [])
+            if not isinstance(records, list) or not records:
+                return None
+
+            results_by_attempt = {
+                int(result.simulation_attempt): result
+                for result in self.results
+                if int(result.simulation_attempt) > 0
+            }
+            nodes: Dict[int, MCTSNode] = {}
+            parent_ids: Dict[int, Optional[int]] = {}
+            for record in records:
+                node_id = int(record["node_id"])
+                obstacles = [
+                    self._obstacle_from_dict(item)
+                    for item in record.get("obstacles", [])
+                ]
+                node = MCTSNode(
+                    obstacles=obstacles,
+                    action=str(record.get("action", "restored")),
+                    node_id=node_id,
+                    visits=int(record.get("visits", 0)),
+                    total_reward=float(record.get("total_reward", 0.0)),
+                    best_reward=float(record.get("best_reward", -1e18)),
+                )
+                attempt = record.get("eval_simulation_attempt")
+                if attempt is not None:
+                    node.eval_result = results_by_attempt.get(int(attempt))
+                nodes[node_id] = node
+                parent_raw = record.get("parent_id")
+                parent_ids[node_id] = int(parent_raw) if parent_raw is not None else None
+
+            root_id = int(payload.get("root_node_id", min(nodes)))
+            root = nodes.get(root_id)
+            if root is None:
+                return None
+            for node_id, node in nodes.items():
+                parent_id = parent_ids[node_id]
+                if parent_id is None or node_id == root_id:
+                    continue
+                parent = nodes.get(parent_id, root)
+                node.parent = parent
+                parent.children.append(node)
+
+            for node in nodes.values():
+                if node.obstacles:
+                    self.tree_signatures.add(self._scenario_signature(node.obstacles))
+            self._node_counter = max(self._node_counter, max(nodes) + 1)
+            saved_random_state = payload.get("random_state")
+            if saved_random_state is not None:
+                random.setstate(self._random_state_from_json(saved_random_state))
+            print(f"[resume] Restored search tree with {len(nodes)} node(s).")
+            return root
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            print(f"[resume] Could not restore tree checkpoint: {error}")
+            return None
+
+    def _rebuild_tree_from_history(self) -> Optional[MCTSNode]:
+        if not self.history:
+            return None
+        root = MCTSNode(obstacles=[], action="root", node_id=0)
+        nodes: Dict[int, MCTSNode] = {root.node_id: root}
+        results_by_attempt = {
+            int(result.simulation_attempt): result
+            for result in self.results
+            if int(result.simulation_attempt) > 0
+        }
+        pending_links = []
+        for row in sorted(
+            self.history,
+            key=lambda item: int(item.get("simulation_attempt", 0) or 0),
+        ):
+            action = str(row.get("action", "restored"))
+            if action.startswith("confirm_attempt_"):
+                continue
+            try:
+                node_id = int(row["node_id"])
+                attempt = int(row.get("simulation_attempt", 0))
+            except (KeyError, TypeError, ValueError):
+                continue
+            result = results_by_attempt.get(attempt)
+            obstacles = self._clone_obstacles(result.obstacles) if result is not None else []
+            node = nodes.get(node_id)
+            if node is None:
+                node = MCTSNode(obstacles=obstacles, action=action, node_id=node_id)
+                nodes[node_id] = node
+            node.eval_result = result
+            parent_raw = row.get("parent_id")
+            try:
+                parent_id = int(parent_raw) if parent_raw not in (None, "", "None") else root.node_id
+            except (TypeError, ValueError):
+                parent_id = root.node_id
+            pending_links.append((node_id, parent_id))
+
+        for node_id, parent_id in pending_links:
+            node = nodes[node_id]
+            parent = nodes.get(parent_id, root)
+            if node is root or node.parent is not None:
+                continue
+            node.parent = parent
+            parent.children.append(node)
+
+        for node in nodes.values():
+            if node.eval_result is None:
+                continue
+            current: Optional[MCTSNode] = node
+            while current is not None:
+                current.visits += 1
+                current.total_reward += node.eval_result.reward
+                current.best_reward = max(current.best_reward, node.eval_result.reward)
+                current = current.parent
+            if node.obstacles:
+                self.tree_signatures.add(self._scenario_signature(node.obstacles))
+
+        self._node_counter = max(self._node_counter, max(nodes) + 1)
+        print(f"[resume] Rebuilt fallback search tree from {len(nodes) - 1} history row(s).")
+        return root
+
+    def _find_tree_node(self, root: MCTSNode, node_id: int) -> Optional[MCTSNode]:
+        for node in self._tree_nodes(root):
+            if node.node_id == node_id:
+                return node
+        return None
+
     def _write_pending_candidate(
         self,
         node: MCTSNode,
@@ -232,6 +450,7 @@ class PersistenceMixin:
             "parent_id": node.parent.node_id if node.parent is not None else None,
             "action": node.action,
             "obstacles": [self._obstacle_to_dict(obs) for obs in node.obstacles],
+            "random_state": self._random_state_to_json(random.getstate()),
             "created_at": datetime.now().isoformat(),
         }
         with open(self.pending_path, "w", encoding="utf-8") as stream:
@@ -262,14 +481,24 @@ class PersistenceMixin:
 
             node_id = int(record.get("node_id", self._next_node_id()))
             self._node_counter = max(self._node_counter, node_id + 1)
+            parent_id = record.get("parent_id")
+            try:
+                parent = self._find_tree_node(root, int(parent_id)) if parent_id is not None else root
+            except (TypeError, ValueError):
+                parent = root
+            if parent is None:
+                parent = root
             node = MCTSNode(
                 obstacles=obstacles,
-                parent=root,
+                parent=parent,
                 action="resume_pending_" + str(record.get("action", "unknown")),
                 node_id=node_id,
             )
-            root.children.append(node)
+            parent.children.append(node)
             self.tree_signatures.add(self._scenario_signature(obstacles))
+            saved_random_state = record.get("random_state")
+            if saved_random_state is not None:
+                random.setstate(self._random_state_from_json(saved_random_state))
             print(f"[resume] Pending candidate will be recomputed if budget remains: node {node.node_id}")
             return node
         except Exception as error:
@@ -551,6 +780,10 @@ class PersistenceMixin:
                     if elapsed is not None:
                         result.elapsed_samples.append(float(elapsed))
                     result.confirmation_attempts += 1
+                    result.test.mean_official_point = self._mean_official_point(result)
+                    result.test.failure_reproducibility = self._failure_reproducibility(result)
+                    result.test.confirmation_samples = len(self._result_point_samples(result))
+                    result.test.mean_min_distance = self._mean_min_distance(result)
                     loaded += 1
                 except Exception:
                     continue
@@ -636,6 +869,11 @@ class PersistenceMixin:
                         confirmation_attempts=0,
                         failure_evidence=record.get("failure_evidence", "none"),
                     )
+                    test.mean_official_point = self._mean_official_point(result)
+                    test.failure_reproducibility = self._failure_reproducibility(result)
+                    test.confirmation_samples = len(self._result_point_samples(result))
+                    test.mean_min_distance = self._mean_min_distance(result)
+                    test.simulation_attempt = result.simulation_attempt
                     self.results.append(result)
                     self.seen_signatures.add(signature)
                     self._update_elites(result)

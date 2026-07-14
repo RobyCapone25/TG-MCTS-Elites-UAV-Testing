@@ -105,8 +105,9 @@ class PlottingMixin:
         ax_xy.set_ylim(min(y_candidates) - 2.5, max(y_candidates) + 2.5)
 
         title_color, status = self._status_style(min_distance)
+        algorithm_name = getattr(self, "ALGORITHM_NAME", "TG-MCTS-Elites")
         fig.suptitle(
-            f"TG-MCTS-Elites attempt {index} | node {node_id} | {status}\n"
+            f"{algorithm_name} attempt {index} | node {node_id} | {status}\n"
             f"min_distance = {min_distance:.3f} m | point = {point} | trajectory = {actual} | "
             f"mission = {mission_status} | evidence = {getattr(test, 'failure_evidence', 'none')}",
             color=title_color,
@@ -294,7 +295,7 @@ class PlottingMixin:
             Line2D([0], [0], marker='o', color='lightgray', linestyle='None', markersize=6, label='Unevaluated/internal'),
         ]
         ax.legend(handles=legend_elements, loc='upper right', frameon=True, fontsize=8)
-        ax.set_title('TG-MCTS-Elites generated search tree')
+        ax.set_title(f'{getattr(self, "ALGORITHM_NAME", "TG-MCTS-Elites")} generated search structure')
         ax.set_xlabel('Tree branching')
         ax.set_ylabel('Tree depth')
         ax.grid(True, alpha=0.2)

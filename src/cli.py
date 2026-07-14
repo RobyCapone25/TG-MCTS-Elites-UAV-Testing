@@ -10,10 +10,15 @@ from pathlib import Path
 
 from decouple import config
 
-from tg_mcts_elites import TGMCTSElitesGenerator
+from tg_mcts_elites import RandomSearchGenerator, TGMCTSElitesGenerator
 
 TESTS_FOLDER = Path(config("TESTS_FOLDER", default="./generated_tests/")).expanduser()
 logger = logging.getLogger(__name__)
+
+ALGORITHMS = {
+    "tg-mcts-elites": TGMCTSElitesGenerator,
+    "random-search": RandomSearchGenerator,
+}
 
 
 def positive_budget(value: str) -> int:
@@ -32,6 +37,12 @@ def arg_parse() -> Namespace:
         "budget",
         type=positive_budget,
         help="maximum number of real simulator executions, including retries",
+    )
+    generate_parser.add_argument(
+        "--algorithm",
+        choices=sorted(ALGORITHMS),
+        default="tg-mcts-elites",
+        help="search algorithm; the default preserves the historical command",
     )
     return parser.parse_args()
 
@@ -61,9 +72,14 @@ def config_loggers() -> None:
     root.addHandler(console_handler)
 
 
-def create_ranking_directory(run_name: str) -> Path:
+def create_ranking_directory(run_name: str, algorithm_id: str) -> Path:
     TESTS_FOLDER.mkdir(parents=True, exist_ok=True)
-    ranking_dir = TESTS_FOLDER / run_name
+    # Preserve the historical TG-MCTS-Elites output path. Keep the baseline in
+    # a separate namespace so paired runs cannot be confused.
+    if algorithm_id == "tg_mcts_elites":
+        ranking_dir = TESTS_FOLDER / run_name
+    else:
+        ranking_dir = TESTS_FOLDER / algorithm_id / run_name
     ranking_dir.mkdir(parents=True, exist_ok=True)
     return ranking_dir.resolve()
 
@@ -95,6 +111,8 @@ def export_ranking(test_cases: list, ranking_dir: Path) -> None:
 
         rows.append(
             {
+                "algorithm_id": getattr(test_case, "algorithm_id", ""),
+                "algorithm_name": getattr(test_case, "algorithm_name", ""),
                 "rank": rank,
                 "minimum_distance": getattr(test_case, "minimum_distance", ""),
                 "official_point": getattr(test_case, "official_point", ""),
@@ -115,6 +133,8 @@ def export_ranking(test_cases: list, ranking_dir: Path) -> None:
 
     with open(ranking_dir / "ranking.csv", "w", newline="", encoding="utf-8") as stream:
         fieldnames = [
+            "algorithm_id",
+            "algorithm_name",
             "rank",
             "minimum_distance",
             "official_point",
@@ -143,15 +163,20 @@ def main() -> int:
         logger.error("Case-study file not found: %s", args.test)
         return 1
 
-    generator = TGMCTSElitesGenerator(case_study_file=str(args.test))
+    generator_class = ALGORITHMS[args.algorithm]
+    generator = generator_class(case_study_file=str(args.test))
 
     try:
         test_cases = generator.generate(args.budget)
-        ranking_dir = create_ranking_directory(generator.run_id)
+        for test_case in test_cases:
+            test_case.algorithm_id = generator.ALGORITHM_ID
+            test_case.algorithm_name = generator.ALGORITHM_NAME
+        ranking_dir = create_ranking_directory(generator.run_id, generator.ALGORITHM_ID)
         export_ranking(test_cases, ranking_dir)
         if hasattr(generator, "_export_best_ranked_summary"):
             generator._export_best_ranked_summary(test_cases)
 
+        print(f"algorithm: {generator.ALGORITHM_NAME}")
         print(f"{len(test_cases)} diverse official failure test cases generated")
         print(f"output folder: {ranking_dir}")
         print(f"complete run data: {Path(generator.output_dir).resolve()}")

@@ -1,9 +1,13 @@
-"""Compatibility layer for the original module name.
+"""Compatibility imports for UAV scenario generators.
 
-New code should import :class:`TGMCTSElitesGenerator`.  ``RandomGenerator`` is
-kept as an alias so existing competition scripts continue to run unchanged.
+``RandomGenerator`` remains an alias of TG-MCTS-Elites for old competition
+scripts. Use ``RandomSearchGenerator`` for the actual random baseline.
 """
 
-from tg_mcts_elites.generator import RandomGenerator, TGMCTSElitesGenerator
+from tg_mcts_elites import (
+    RandomGenerator,
+    RandomSearchGenerator,
+    TGMCTSElitesGenerator,
+)
 
-__all__ = ["TGMCTSElitesGenerator", "RandomGenerator"]
+__all__ = ["TGMCTSElitesGenerator", "RandomSearchGenerator", "RandomGenerator"]
