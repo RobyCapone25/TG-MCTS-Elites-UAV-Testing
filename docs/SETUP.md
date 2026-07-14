@@ -1,6 +1,9 @@
 # Setup Guide
 
-This guide explains how to install, configure, verify, run, and resume the TG-MCTS-Elites UAV test generator.
+This guide explains how to install, configure, verify, run, and resume the
+TG-MCTS-Elites UAV test generator.
+
+## Architecture
 
 The recommended architecture is:
 
@@ -9,7 +12,7 @@ Linux / Ubuntu host
     |
     |-- Conda environment: Python 3.10
     |       |
-    |       |-- TG-MCTS-Elites source code
+    |       |-- TG-MCTS-Elites source
     |       |-- Aerialist Python package v1.0
     |
     |-- Docker
@@ -22,139 +25,95 @@ Linux / Ubuntu host
                     |-- Gazebo
 ```
 
-PX4, PX4-Avoidance, ROS, and Gazebo do not need to be installed manually on the host for the recommended Docker workflow.
+PX4, PX4-Avoidance, ROS, and Gazebo do not need to be installed manually on the
+host for the recommended Docker workflow.
 
----
-
-## Supported and Pinned Components
+## Supported and pinned components
 
 | Component | Requirement |
 |---|---|
-| Host operating system | Linux, tested on Ubuntu |
+| Host operating system | Linux; tested on Ubuntu |
 | Host architecture | x86-64 recommended |
 | Python | 3.10 |
 | Environment manager | Conda |
-| Docker | Required |
-| Host Aerialist Python package | Git tag `v1.0` |
+| Docker | Required for the recommended workflow |
+| Host Aerialist package | Git tag `v1.0` |
 | Simulation image | `skhatiri/aerialist:2.0` |
-| PX4 / Gazebo / ROS | Supplied by the simulation image |
-| Standard simulation agent | `docker` |
-| Standard simulator setting | `ros` |
-| Standard robot setting | `px4_ros` |
+| Standard host agent | `docker` |
+| Standard simulator | `ros` |
+| Standard robot | `px4_ros` |
 
-The Aerialist Python package installed in Conda provides the Python API imported by the generator.
+`requirements.txt` pins the direct Python packages used by this repository to
+versions compatible with the Aerialist `v1.0` dependency set.
 
-The Aerialist Docker image provides the PX4/Gazebo/ROS simulation stack.
-
-These are two distinct parts of the setup, and both are required by the standard host-based workflow.
-
----
-
-## 1. Clone the Repository
+## 1. Clone the repository
 
 ```bash
 git clone https://github.com/RobyCapone25/TG-MCTS-Elites-UAV-Testing.git
 cd TG-MCTS-Elites-UAV-Testing
 ```
 
----
-
 ## 2. Install Docker on Ubuntu
+
+A distribution package can be installed with:
 
 ```bash
 sudo apt update
 sudo apt install docker.io -y
-sudo systemctl enable docker
-sudo systemctl start docker
+sudo systemctl enable --now docker
 ```
 
-Check Docker:
+Verify Docker:
 
 ```bash
 docker --version
+docker run --rm hello-world
 ```
 
-Allow the current user to execute Docker without `sudo`:
+Allow the current user to run Docker without `sudo`:
 
 ```bash
 sudo usermod -aG docker "$USER"
 ```
 
-Log out and log back in after running that command.
+Log out and log back in after changing group membership.
 
-Verify access:
-
-```bash
-docker run --rm hello-world
-```
-
-The generator must be able to execute Docker commands without `sudo`.
-
----
-
-## 3. Pull the Simulation Image
+## 3. Pull the simulation image
 
 ```bash
 docker pull skhatiri/aerialist:2.0
-```
-
-Verify that it exists locally:
-
-```bash
 docker image inspect skhatiri/aerialist:2.0 >/dev/null
 ```
 
-The project deliberately uses the explicit `2.0` image tag instead of `latest`.
+The explicit `2.0` tag is used instead of `latest`.
 
----
-
-## 4. Create the Conda Environment
-
-Create the environment from the repository file:
+## 4. Create the Conda environment
 
 ```bash
 conda env create -f environment.yml
-```
-
-Activate it:
-
-```bash
 conda activate uav
 ```
 
-The environment installs:
-
-- Python 3.10;
-- Aerialist Python package from tag `v1.0`;
-- python-decouple;
-- matplotlib;
-- NumPy;
-- pandas;
-- PyYAML;
-- munch;
-- pyparsing.
-
-When the environment already exists, update it with:
+To update an existing environment:
 
 ```bash
 conda env update -f environment.yml --prune
 conda activate uav
 ```
 
----
+The environment installs the Aerialist Python API from tag `v1.0` and the
+pinned direct dependencies listed in `requirements.txt`.
 
-## 5. Manual Python Installation Alternative
+## 5. Manual Python installation
 
-The Conda file is the recommended method.
-
-For an existing Python 3.10 environment, install Aerialist and the additional dependencies manually:
+For an existing Python 3.10 environment:
 
 ```bash
 python -m pip install "git+https://github.com/skhatiri/Aerialist.git@v1.0"
 python -m pip install -r requirements.txt
 ```
 
-Verify the imports:
+Verify imports:
 
 ```bash
 python - <<'PY'
@@ -171,8 +130,6 @@ print("All required Python imports succeeded.")
 PY
 ```
 
----
-
 ## 6. Configure `.env`
 
 Create the local runtime file:
@@ -181,7 +138,7 @@ Create the local runtime file:
 cp .env.example .env
 ```
 
-The recommended configuration is:
+The recommended host configuration is:
 
 ```env
 LOGS_COPY_DIR=results/
@@ -204,38 +161,31 @@ DOCKER_IMG=skhatiri/aerialist:2.0
 DOCKER_TIMEOUT=1000
 ```
 
-The real `.env` file is intentionally ignored by Git.
+The real `.env` file is ignored by Git. Only `.env.example` is versioned.
 
-The public `.env.example` file is committed so that new users can reproduce the configuration.
+## 7. Verify the setup
 
----
-
-## 7. Verify the Complete Setup
-
-Activate the environment:
+Activate the environment and run:
 
 ```bash
 conda activate uav
-```
-
-Run the automated setup checker:
-
-```bash
 ./scripts/check_setup.sh
 ```
 
-It checks:
+The checker validates:
 
 - Linux;
 - active Conda environment;
 - Python 3.10;
 - required Python imports;
 - Docker access without `sudo`;
-- the `skhatiri/aerialist:2.0` image;
-- `.env`;
-- mission files;
+- the required Docker image;
+- `.env` values;
+- repository files;
 - Python syntax;
-- shell-script syntax.
+- shell syntax;
+- YAML/CFF syntax when PyYAML is available;
+- the unit-test suite.
 
 The final line should be:
 
@@ -243,27 +193,27 @@ The final line should be:
 SETUP CHECK PASSED
 ```
 
----
+## 8. Run a quick smoke experiment
 
-## 8. Run a Quick Test
-
-Run one fresh simulation:
+Run one fresh simulator attempt:
 
 ```bash
 TG_FORCE_NEW=1 python cli.py generate case_studies/mission1.yaml 1
 ```
 
-`TG_FORCE_NEW=1` creates a new search run.
-
-A successful execution should eventually print:
+A successful program execution prints a minimum distance for each evaluated
+simulation and eventually reports:
 
 ```text
-minimum_distance: ...
-1 test cases generated
+<n> diverse official failure test cases generated
 output folder: ...
+complete run data: ...
 ```
 
-Local artifacts are written under:
+`<n>` can legitimately be zero. One simulator attempt does not guarantee an
+official failure.
+
+Local outputs are written under:
 
 ```text
 results/
@@ -271,103 +221,91 @@ generated_tests/
 logs/
 ```
 
----
+## 9. Run a larger experiment
 
-## 9. Run a Mission With a Larger Budget
-
-Example with 100 successful simulations:
+Example with a strict total budget of 100 simulator attempts:
 
 ```bash
 TG_FORCE_NEW=1 python cli.py generate case_studies/mission1.yaml 100
 ```
 
-The second positional argument is the total target simulation budget.
+The budget includes successful evaluations, system-error attempts, retries, and
+confirmation reruns.
 
----
-
-## 10. Run the Full Experiment
-
-Run 100 simulations for each of the three missions:
+## 10. Run all supplied missions
 
 ```bash
 ./scripts/run_all_100.sh
 ```
 
-The script executes:
+The script starts one fresh 100-attempt run for each mission:
 
 ```text
-mission1: 100 simulations
-mission2: 100 simulations
-mission3: 100 simulations
+mission1: at most 100 simulator attempts
+mission2: at most 100 simulator attempts
+mission3: at most 100 simulator attempts
 ```
 
-Total:
+The aggregate declared budget is 300 simulator attempts. The number of
+successful evaluations can be smaller because infrastructure errors and
+post-execution rejections consume budget.
+
+## 11. Crash recovery
+
+Recovery data are stored under:
 
 ```text
-100 x 3 = 300 successful simulations
+results/tg_mcts_elites/<run-id>/
 ```
 
-The script uses `TG_FORCE_NEW=1`, so it is intended for starting a complete fresh experiment.
-
----
-
-## 11. Crash Recovery
-
-The generator writes native recovery information under:
-
-```text
-results/tg_mcts_elites/<run_id>/
-```
-
-Important checkpoint files include:
+Important files include:
 
 ```text
 run_state.json
 checkpoint/pending_candidate.json
 checkpoint/results.jsonl
 checkpoint/history.jsonl
+checkpoint/confirmations.jsonl
 checkpoint/system_errors.csv
 checkpoint/invalid_candidates.csv
 ```
 
-After a PC, Docker, Gazebo, PX4, or process interruption, resume the same mission **without** `TG_FORCE_NEW=1`.
-
-Example:
+After a PC, Docker, Gazebo, PX4, or process interruption, resume the same mission
+without `TG_FORCE_NEW=1`:
 
 ```bash
 python cli.py generate case_studies/mission1.yaml 100
 ```
 
-The budget is interpreted as the total target.
+The numeric value is the total target budget. If 37 attempts are already
+recorded, the resumed run continues toward 100 rather than adding 100 more.
 
-For example, when 37 successful simulations already exist, the resumed execution continues toward 100 rather than running 100 additional simulations.
+Do not use a fresh-run script to resume an interrupted mission.
 
-Do not use the fresh-run script to resume an interrupted mission.
+## 12. Fixed search seed
 
----
-
-## 12. Reproducible Random Seed
-
-To use a fixed search seed:
+Use:
 
 ```bash
 TG_SEED=12345 TG_FORCE_NEW=1 \
 python cli.py generate case_studies/mission1.yaml 100
 ```
 
-The seed is stored in the run state.
+The seed is stored in `run_state.json`.
 
----
+`TG_SEED` controls Python random choices in the generator. It does not make PX4,
+Gazebo, Docker scheduling, or flight trajectories bit-for-bit deterministic.
 
-## 13. Dockerfile
+## 13. Dockerfile workflow
 
-The repository Dockerfile is based on:
+The project Dockerfile inherits:
 
 ```dockerfile
 FROM skhatiri/aerialist:2.0
 ```
 
-Inside that project container, `AGENT=local` is used because the container already contains the Aerialist/PX4 simulation environment.
+Inside that image, `AGENT=local` is used because the simulation environment is
+already available in the same container.
 
 This differs from the recommended host workflow:
 
@@ -376,29 +314,39 @@ Host workflow:      AGENT=docker
 Project container:  AGENT=local
 ```
 
-Do not change the host `.env` value from `docker` to `local`.
+Do not change the host `.env` from `docker` to `local`.
 
----
+Build the project image with:
 
-## 14. Aerialist Log Levels
-
-Aerialist may display a container transcript with an `ERROR` logging level even when the simulation completed.
-
-The execution is successful when the transcript also contains messages such as:
-
-```text
-entry - INFO - test finished
-testcase - INFO - test finished
-minimum_distance: ...
+```bash
+docker build -t tg-mcts-elites-uav .
 ```
 
-The TG-MCTS-Elites generator reports a genuine retryable infrastructure failure explicitly as a system error.
+## 14. Aerialist log levels
 
----
+Aerialist can display part of a container transcript at `ERROR` level even when
+the simulation completes. Treat the run as successful when the transcript also
+contains completion messages and a minimum-distance result.
 
-## 15. Generated and Local-Only Files
+Retryable infrastructure failures are reported explicitly by TG-MCTS-Elites as
+system errors and recorded in `checkpoint/system_errors.csv`.
 
-The following files are intentionally excluded from Git:
+## 15. Hosted continuous integration
+
+The GitHub Actions workflow performs checks that do not require the simulator:
+
+- compilation of all tracked Python files;
+- shell syntax;
+- YAML and CFF parsing;
+- required-file checks;
+- documentation terminology checks.
+
+PX4/Gazebo execution and the complete dependency-backed unit suite remain local
+validation tasks.
+
+## 16. Generated and local-only files
+
+The following are intentionally excluded from Git:
 
 ```text
 results/
@@ -406,19 +354,14 @@ logs/
 generated_tests/
 *.ulg
 *.bag
+*.log
 .env
-backups/
+local backup directories
 ```
 
-They are generated during local simulation and can become large.
-
----
-
-## 16. Common Problems
+## 17. Common problems
 
 ### `ModuleNotFoundError: No module named 'decouple'`
-
-Activate or update the environment:
 
 ```bash
 conda activate uav
@@ -426,8 +369,6 @@ conda env update -f environment.yml --prune
 ```
 
 ### `ModuleNotFoundError: No module named 'aerialist'`
-
-Install the pinned host package:
 
 ```bash
 python -m pip install "git+https://github.com/skhatiri/Aerialist.git@v1.0"
@@ -455,8 +396,15 @@ cp .env.example .env
 
 ### Resume instead of starting again
 
-Do not use `TG_FORCE_NEW=1`:
+Omit `TG_FORCE_NEW=1`:
 
 ```bash
 python cli.py generate case_studies/mission1.yaml 100
 ```
+
+### Mission path does not intersect the legal area
+
+Verify that the YAML references the intended QGroundControl `.plan` and that the
+plan contains a non-zero geographic path. The generator evaluates eight
+axis/sign mappings automatically, but it cannot construct a reference path when
+none intersects the legal obstacle domain.

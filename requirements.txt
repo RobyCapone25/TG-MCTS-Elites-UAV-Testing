@@ -1,15 +1,13 @@
-# Additional Python packages used by TG-MCTS-Elites.
+# Direct Python dependencies used by TG-MCTS-Elites.
 #
-# Host installation of Aerialist:
+# These versions are aligned with the Aerialist v1.0 dependency set.
+# Install the host Aerialist package first:
 #   python -m pip install "git+https://github.com/skhatiri/Aerialist.git@v1.0"
-#
-# Aerialist is not repeated here because the project Dockerfile
-# inherits it from skhatiri/aerialist:2.0.
 
-python-decouple
-matplotlib
-numpy
-pandas
-PyYAML
-munch
-pyparsing
+python-decouple==3.6
+matplotlib==3.6.1
+numpy==1.23.2
+pandas==1.5.3
+PyYAML==6.0
+munch==2.5.0
+pyparsing==3.0.9

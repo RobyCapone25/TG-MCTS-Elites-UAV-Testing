@@ -10,15 +10,11 @@ dependencies:
   - git
 
   - pip:
-      # Host-side Aerialist Python API.
-      # PX4, Gazebo, and ROS remain inside the Docker image.
       - git+https://github.com/skhatiri/Aerialist.git@v1.0
-
-      # TG-MCTS-Elites dependencies.
-      - python-decouple
-      - matplotlib
-      - numpy
-      - pandas
-      - pyyaml
-      - munch
-      - pyparsing
+      - python-decouple==3.6
+      - matplotlib==3.6.1
+      - numpy==1.23.2
+      - pandas==1.5.3
+      - PyYAML==6.0
+      - munch==2.5.0
+      - pyparsing==3.0.9

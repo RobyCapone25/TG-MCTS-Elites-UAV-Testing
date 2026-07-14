@@ -15,38 +15,41 @@ sequenceDiagram
 
     User->>CLI: generate case-study.yaml budget
     CLI->>Generator: construct(case-study)
+    CLI->>Generator: generate(budget)
     Generator->>Mission: parse YAML and referenced .plan
     Mission->>Mission: evaluate eight frame mappings
     Mission-->>Generator: local reference path
-    CLI->>Generator: generate(budget)
     Generator->>Store: create or resume mission-aware run
-    Store-->>Generator: restored results/history/confirmations
+    Store-->>Generator: restored results, history, confirmations, pending candidate
 
     loop exploration while attempt limit remains
         Generator->>MCTS: tree_policy(root)
         MCTS-->>Generator: candidate node
         Generator->>Validator: validate candidate input
         alt invalid before simulator
-            Validator-->>Generator: reasons
+            Validator-->>Generator: validation reasons
             Generator->>Store: log invalid candidate
         else valid candidate
-            Validator-->>Generator: compliant input
-            Generator->>Store: save pending candidate
+            Validator-->>Generator: input compliant
+            Generator->>Store: persist pending candidate
             Generator->>Store: consume simulator attempt
             Generator->>Simulator: execute test
             alt system error
                 Simulator-->>Generator: exception
                 Generator->>Store: log system error
+                opt retry allowed and budget remains
+                    Generator->>Simulator: rerun same pending scenario
+                end
             else evaluated execution
                 Simulator-->>Generator: trajectory, distances, ULG
-                Generator->>Scoring: point, reward, mission_status, failure_evidence
-                Scoring-->>Generator: evaluated result
-                Generator->>Archive: update elite cell
+                Generator->>Scoring: point, reward, mission outcome, failure evidence
+                Scoring-->>Generator: EvalResult
                 alt official distance failure
                     Generator->>Store: save YAML, ULG, overview, XY-time
-                else safe or near miss
+                else safe, near miss, or non-official non-completion
                     Generator->>Store: keep metadata only
                 end
+                Generator->>Archive: update elite cell
                 Generator->>MCTS: backpropagate reward
                 Generator->>Store: append result and history
                 opt snapshot interval reached
@@ -56,9 +59,9 @@ sequenceDiagram
         end
     end
 
-    opt confirmation budget
+    opt confirmation reserve and candidate failures
         Generator->>Confirm: confirm top failures
-        loop available confirmation attempts
+        loop remaining confirmation attempts
             Confirm->>Store: consume attempt
             Confirm->>Simulator: rerun same obstacle scenario
             Simulator-->>Confirm: observed result
@@ -71,14 +74,18 @@ sequenceDiagram
         end
     end
 
+    opt unused total budget remains
+        Generator->>MCTS: return remaining budget to exploration
+    end
+
     Generator->>Selector: final_suite()
     Selector->>Selector: allow completed or not_completed official failures
     Selector->>Selector: reject unknown completion
     Selector->>Selector: robust quality ranking
     Selector->>Selector: geometry and trajectory-DTW diversity
     Selector-->>Generator: selected tests
-    Generator->>Plotter: save final history, tree, and three progress figures
+    Generator->>Plotter: save final history, tree, and progress plots
     Generator-->>CLI: selected tests and run id
-    CLI->>Plotter: export best_ranked_failed_tests
-    CLI->>CLI: export generated_tests same run id
-    CLI-->>User: print output paths
+    CLI->>Generator: export best_ranked_failed_tests
+    CLI->>CLI: export generated_tests with same run id
+    CLI-->>User: print selected count and output paths

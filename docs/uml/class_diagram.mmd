@@ -1,4 +1,10 @@
 classDiagram
+    class CompetitionCLI {
+        +arg_parse() Namespace
+        +export_ranking(test_cases, ranking_dir)
+        +main() int
+    }
+
     class TGMCTSElitesGenerator {
         +generate(budget) List
         -reset_search_state()
@@ -13,6 +19,7 @@ classDiagram
     class GeneratorConstants {
         +CRITICAL_PROXIMITY_THRESHOLD
         +FAILURE_THRESHOLD
+        +NEAR_MISS_THRESHOLD
         +FINAL_MIN_SCENARIO_DISTANCE
         +FINAL_MIN_TRAJECTORY_DTW
         +OUTPUT_SNAPSHOT_INTERVAL
@@ -22,9 +29,11 @@ classDiagram
         -new_run_id() str
         -setup_run_directory(budget)
         -consume_simulation_attempt(budget) int
-        -save_result_checkpoint(result, attempt, node)
-        -save_confirmation_failure_artifacts(result, attempt, node, base_attempt)
+        -save_result_checkpoint(result, attempt, node) EvalResult
+        -save_confirmation_failure_artifacts(result, attempt, node, base_attempt) EvalResult
         -load_previous_results()
+        -load_previous_confirmations()
+        -load_previous_history()
     }
 
     class MissionPlanMixin {
@@ -59,7 +68,7 @@ classDiagram
     class ScoringMixin {
         -official_point(distance) int
         -failure_evidence(distance, mission_status) str
-        -reward(distance, obstacles, time, status) float
+        -reward(distance, obstacle_count, time, status) float
         -final_rank_key(result) Tuple
         -is_returnable_failure(result) bool
     }
@@ -112,7 +121,6 @@ classDiagram
         +log_file
         +plot_file
         +xy_time_plot_file
-        +failure_evidence
     }
 
     class EvalResult {
@@ -130,6 +138,7 @@ classDiagram
         +xy_time_plot
         +point_samples
         +distance_samples
+        +elapsed_samples
         +confirmation_attempts
     }
 
@@ -170,6 +179,8 @@ classDiagram
     SelectionMixin <|-- TGMCTSElitesGenerator
 
     RandomGenerator ..> TGMCTSElitesGenerator : alias
+    CompetitionCLI --> TGMCTSElitesGenerator : constructs and runs
+    CompetitionCLI --> TestCase : exports selected tests
     TGMCTSElitesGenerator --> MCTSNode
     TGMCTSElitesGenerator --> EvalResult
     SimulationMixin --> TestCase

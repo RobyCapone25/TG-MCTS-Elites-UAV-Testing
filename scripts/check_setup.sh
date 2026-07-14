@@ -7,10 +7,10 @@ set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-
 cd "$PROJECT_ROOT"
 
 FAILURES=0
+PYTHON_AVAILABLE=0
 
 pass() {
     printf '[OK]   %s\n' "$1"
@@ -30,10 +30,6 @@ echo "TG-MCTS-Elites setup verification"
 echo "Repository: $PROJECT_ROOT"
 echo "============================================================"
 
-# ------------------------------------------------------------
-# Operating system
-# ------------------------------------------------------------
-
 if [[ "$(uname -s)" == "Linux" ]]; then
     pass "Linux operating system detected"
 else
@@ -44,27 +40,19 @@ if command -v lsb_release >/dev/null 2>&1; then
     note "Distribution: $(lsb_release -ds 2>/dev/null || true)"
 fi
 
-# ------------------------------------------------------------
-# Conda environment
-# ------------------------------------------------------------
-
 if [[ "${CONDA_DEFAULT_ENV:-}" == "uav" ]]; then
     pass "Conda environment 'uav' is active"
 else
     fail "Activate the environment first: conda activate uav"
 fi
 
-# ------------------------------------------------------------
-# Python
-# ------------------------------------------------------------
-
 if command -v python >/dev/null 2>&1; then
+    PYTHON_AVAILABLE=1
     pass "Python executable found: $(command -v python)"
 
     PYTHON_VERSION="$(
         python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")'
     )"
-
     if [[ "$PYTHON_VERSION" == "3.10" ]]; then
         pass "Python 3.10 detected"
     else
@@ -74,11 +62,8 @@ else
     fail "Python was not found"
 fi
 
-# ------------------------------------------------------------
-# Python packages
-# ------------------------------------------------------------
-
-if python - <<'PY'
+if [[ "$PYTHON_AVAILABLE" -eq 1 ]]; then
+    if python - <<'PY'
 import importlib
 
 modules = {
@@ -93,7 +78,6 @@ modules = {
 }
 
 missing = []
-
 for module_name, package_name in modules.items():
     try:
         importlib.import_module(module_name)
@@ -105,18 +89,13 @@ if missing:
     for item in missing:
         print(f"  - {item}")
     raise SystemExit(1)
-
-print("All required Python packages can be imported.")
 PY
-then
-    pass "Required Python packages are available"
-else
-    fail "Python dependencies are incomplete"
+    then
+        pass "Required Python packages are available"
+    else
+        fail "Python dependencies are incomplete"
+    fi
 fi
-
-# ------------------------------------------------------------
-# Docker
-# ------------------------------------------------------------
 
 if command -v docker >/dev/null 2>&1; then
     pass "Docker executable found"
@@ -135,10 +114,6 @@ if command -v docker >/dev/null 2>&1; then
 else
     fail "Docker was not found"
 fi
-
-# ------------------------------------------------------------
-# Runtime configuration
-# ------------------------------------------------------------
 
 if [[ -f .env ]]; then
     pass ".env file exists"
@@ -162,16 +137,23 @@ else
     fail ".env is missing; create it with: cp .env.example .env"
 fi
 
-# ------------------------------------------------------------
-# Required project files
-# ------------------------------------------------------------
-
 REQUIRED_FILES=(
     "cli.py"
     "src/__init__.py"
     "src/cli.py"
     "src/random_generator.py"
     "src/testcase.py"
+    "src/tg_mcts_elites/__init__.py"
+    "src/tg_mcts_elites/generator.py"
+    "README.md"
+    "CITATION.cff"
+    "docs/ALGORITHM.md"
+    "docs/OUTPUTS.md"
+    "docs/SETUP.md"
+    "docs/uml/class_diagram.mmd"
+    "docs/uml/execution_flow.mmd"
+    "docs/uml/sequence_diagram.mmd"
+    ".github/workflows/python-checks.yml"
     "case_studies/mission1.yaml"
     "case_studies/mission2.yaml"
     "case_studies/mission3.yaml"
@@ -188,37 +170,90 @@ for file in "${REQUIRED_FILES[@]}"; do
     fi
 done
 
-# ------------------------------------------------------------
-# Syntax checks
-# ------------------------------------------------------------
+if [[ "$PYTHON_AVAILABLE" -eq 1 ]]; then
+    if python - <<'PY'
+from pathlib import Path
 
-if python -m py_compile \
-    cli.py \
-    src/cli.py \
-    src/random_generator.py \
-    src/testcase.py
-then
-    pass "Python syntax checks passed"
-else
-    fail "Python syntax checks failed"
+paths = [Path("cli.py")]
+paths.extend(Path("src").rglob("*.py"))
+paths.extend(Path("tests").rglob("*.py"))
+
+for path in sorted(paths):
+    compile(path.read_text(encoding="utf-8"), str(path), "exec")
+
+print(f"Compiled {len(paths)} Python files in memory.")
+PY
+    then
+        pass "Python syntax checks passed"
+    else
+        fail "Python syntax checks failed"
+    fi
 fi
 
-if bash -n scripts/run_all_100.sh scripts/check_setup.sh; then
+if bash -n scripts/*.sh; then
     pass "Shell syntax checks passed"
 else
     fail "Shell syntax checks failed"
 fi
 
-# ------------------------------------------------------------
-# Result
-# ------------------------------------------------------------
+if [[ "$PYTHON_AVAILABLE" -eq 1 ]] && python -c 'import yaml' >/dev/null 2>&1; then
+    if python - <<'PY'
+from pathlib import Path
+import yaml
+
+for path in [
+    Path("environment.yml"),
+    Path("CITATION.cff"),
+    Path(".github/workflows/python-checks.yml"),
+]:
+    with path.open("r", encoding="utf-8") as stream:
+        yaml.safe_load(stream)
+
+print("YAML and CFF files parsed successfully.")
+PY
+    then
+        pass "YAML and CFF syntax checks passed"
+    else
+        fail "YAML or CFF syntax checks failed"
+    fi
+else
+    note "Skipping YAML/CFF parsing because PyYAML is unavailable"
+fi
+
+if grep -RInE \
+    --include='*.md' \
+    'successful simulations|Fresh deterministic run|random_generator\.TGMCTSElitesGenerator' \
+    README.md docs src scripts case_studies benchmark
+then
+    fail "Outdated documentation terminology was found"
+else
+    pass "Documentation terminology checks passed"
+fi
+
+if [[ "$PYTHON_AVAILABLE" -eq 1 ]] && python -c 'import aerialist' >/dev/null 2>&1; then
+    if PYTHONPATH="$PROJECT_ROOT/src" MPLBACKEND=Agg \
+        python -m unittest discover -s tests -v
+    then
+        pass "Unit tests passed"
+    else
+        fail "Unit tests failed"
+    fi
+else
+    note "Skipping unit tests because Aerialist is unavailable"
+fi
+
+if git diff --check; then
+    pass "Git whitespace checks passed"
+else
+    fail "Git whitespace checks failed"
+fi
 
 echo "============================================================"
 
 if [[ "$FAILURES" -eq 0 ]]; then
     echo "SETUP CHECK PASSED"
     echo
-    echo "Quick test:"
+    echo "Quick smoke experiment:"
     echo "  TG_FORCE_NEW=1 python cli.py generate case_studies/mission1.yaml 1"
     exit 0
 fi

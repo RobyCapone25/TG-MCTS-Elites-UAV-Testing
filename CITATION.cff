@@ -11,5 +11,18 @@ authors:
     given-names: Guglielmo
     email: guglielmo1.cattaneo@mail.polimi.it
     affiliation: Politecnico di Milano
+abstract: >-
+  A mission-guided search-based UAV test generator combining Monte Carlo Tree
+  Search, progressive widening, MAP-Elites, strict simulator-attempt
+  accounting, robustness confirmation, and diversity-aware final selection for
+  the UAV Testing Competition.
+keywords:
+  - UAV testing
+  - search-based software testing
+  - Monte Carlo Tree Search
+  - MAP-Elites
+  - PX4
+  - Aerialist
 repository-code: https://github.com/RobyCapone25/TG-MCTS-Elites-UAV-Testing
+url: https://github.com/RobyCapone25/TG-MCTS-Elites-UAV-Testing
 version: 0.1.0

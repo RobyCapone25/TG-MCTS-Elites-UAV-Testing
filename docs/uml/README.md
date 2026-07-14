@@ -1,13 +1,22 @@
 # UML Diagrams
 
-The Mermaid sources document the implementation actually present in `src/tg_mcts_elites/`.
+The Mermaid sources document the implementation under `src/tg_mcts_elites/`.
 
 | File | Purpose |
 |---|---|
-| `class_diagram.mmd` | Classes, mixins, data structures, and principal dependencies |
-| `execution_flow.mmd` | Mission parsing, strict-budget search, confirmation, retention, and export |
-| `sequence_diagram.mmd` | Runtime interactions among the CLI, generator, simulator, persistence, and selector |
+| [`class_diagram.mmd`](class_diagram.mmd) | Public class, compatibility alias, mixins, data structures, and principal dependencies |
+| [`execution_flow.mmd`](execution_flow.mmd) | Mission parsing, strict-budget exploration, retries, confirmation, retention, and export |
+| [`sequence_diagram.mmd`](sequence_diagram.mmd) | Runtime interactions among CLI, generator, simulator, persistence, plotting, confirmation, and selection |
 
-The diagrams are version-controlled as text and can be rendered directly by GitHub or edited with Mermaid Live Editor.
+The diagrams are version-controlled as text and can be rendered with Mermaid
+Live Editor or embedded in Markdown using Mermaid code fences.
 
-The diagrams use the descriptive `TGMCTSElitesGenerator` name. `RandomGenerator` appears only as a backward-compatible alias. They also distinguish input compliance, mission outcome, distance-based failure evidence, and confirmed collision evidence.
+The diagrams use `TGMCTSElitesGenerator` as the descriptive public name.
+`RandomGenerator` appears only as a compatibility alias.
+
+They also distinguish:
+
+- generated-input compliance;
+- mission outcome;
+- distance-based failure evidence;
+- independent collision evidence, which is not currently available.

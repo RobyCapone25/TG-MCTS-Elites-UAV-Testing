@@ -1,0 +1,68 @@
+name: Bug report
+description: Report a reproducible repository or generator defect
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach private credentials or complete large simulator output trees.
+
+  - type: input
+    id: version
+    attributes:
+      label: Commit or version
+      placeholder: Commit SHA, branch, or release
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Ubuntu version, Python version, Docker version, Aerialist image
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mission
+    attributes:
+      label: Mission
+      options:
+        - mission1
+        - mission2
+        - mission3
+        - custom mission
+        - not applicable
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command and configuration
+      description: Include budget, TG_SEED, TG_FORCE_NEW, and relevant .env values without secrets.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Relevant metadata
+      description: Paste concise excerpts from run_state.json, system_errors.csv, or traceback output.

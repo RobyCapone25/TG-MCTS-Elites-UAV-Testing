@@ -1,46 +1,41 @@
-# Local configuration
-.env
-.env.*
-!.env.example
-
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
-.ruff_cache/
 .coverage
 htmlcov/
 
-# Virtual environments
+# Virtual environments and local configuration
+.env
+.env.*
+!.env.example
 .venv/
 venv/
-env/
-.conda/
 
-# Generated simulation and experiment data
-logs/
+# Simulator and generated outputs
 results/
+logs/
 generated_tests/
 *.ulg
 *.bag
 *.log
 
-# Local backups and update artifacts
-.*_backup/
-.*_backups/
+# Local backup and helper files
 .harmonization_backup/
-backups/
+.failure_outcome_naming_backup/
+.github_code_docs_uml_backup/
+.*_backup/
+*_backup/
 *.bak
 *.tmp
-*~
-
-# Local publication helper
+.env.save
 GITHUB_UPLOAD_COMMANDS.sh
+APPLY_*.sh
 
 # Editors and operating systems
+.DS_Store
 .vscode/
 .idea/
-.DS_Store
-Thumbs.db

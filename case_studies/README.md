@@ -1,61 +1,63 @@
 # Case Studies
 
-This folder contains the UAV missions used by the TG-MCTS-Elites generator.
+This directory contains the supplied UAV missions and their Aerialist
+case-study configurations. The generator does not modify mission waypoints; it
+generates obstacle configurations around the inferred mission path.
 
-The generator does not modify the mission itself. It modifies only the obstacle configuration around the mission in order to search for unsafe or challenging scenarios.
-
----
-
-## Main Mission Files
+## Main files
 
 | File | Role |
 |---|---|
-| `mission1.yaml` | Mission 1 configuration used by the generator |
-| `mission2.yaml` | Mission 2 configuration used by the generator |
-| `mission3.yaml` | Mission 3 configuration used by the generator |
+| `mission1.yaml` | Mission 1 Aerialist configuration |
+| `mission2.yaml` | Mission 2 Aerialist configuration |
+| `mission3.yaml` | Mission 3 Aerialist configuration |
 | `mission1.plan` | Mission 1 QGroundControl plan |
 | `mission2.plan` | Mission 2 QGroundControl plan |
 | `mission3.plan` | Mission 3 QGroundControl plan |
+| `mission-commands.csv` | Reference command information |
+| `mission-params.csv` | Reference mission parameter information |
+| `*.png` | Reference mission and case-study figures |
 
----
+Local `.ulg` files are ignored and are not part of the versioned case studies.
 
-## Running a Mission
+## Run a mission
 
 From the repository root:
 
 ```bash
-python cli.py generate case_studies/mission1.yaml 10
+TG_FORCE_NEW=1 python cli.py generate case_studies/mission1.yaml 10
 ```
 
-The second argument is the simulation budget.
+The second argument is a strict simulator-attempt budget, not a guaranteed
+number of successful evaluations or returned failures.
 
-For example:
+Example:
 
 ```bash
-python cli.py generate case_studies/mission2.yaml 100
+TG_FORCE_NEW=1 python cli.py generate case_studies/mission2.yaml 100
 ```
 
-runs the generator on `mission2.yaml` with a budget of 100 successful simulations.
+This allows at most 100 real simulator executions for the Mission 2 run,
+including retries and confirmation reruns.
 
----
+## Mission-path use
 
-## Mission Role
+The generator:
 
-Each mission defines a reference UAV trajectory or mission plan.
+1. resolves the `.plan` referenced by the YAML;
+2. converts geographic waypoints to a local metric path;
+3. evaluates eight possible axis/sign mappings;
+4. samples initial scenarios and path-oriented mutations from the inferred
+   simulator-frame path.
 
-The search algorithm then generates obstacle configurations that satisfy the official constraints and tries to minimize the distance between the UAV trajectory and the generated obstacles.
+## Generated outputs
 
----
-
-## Generated Outputs
-
-Generated tests are not stored inside this folder.
-
-They are saved locally under:
+Generated data are stored outside this directory:
 
 ```text
-generated_tests/
 results/
+generated_tests/
+logs/
 ```
 
-These folders are ignored by Git because they can become large.
+These paths are ignored because simulator output can become large.

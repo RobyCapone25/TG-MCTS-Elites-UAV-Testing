@@ -6,7 +6,7 @@ flowchart TD
     E --> F[Infer simulator axis/sign mapping from legal-area overlap]
     F --> G[Create or resume mission-aware run directory]
     G --> H[Restore results, confirmations, history, and pending candidate]
-    H --> I[Reserve part of sufficiently large budget for confirmation]
+    H --> I[Reserve confirmation attempts for sufficiently large budgets]
     I --> J{Exploration limit reached?}
 
     J -- No --> K[MCTS select or expand]
@@ -17,7 +17,7 @@ flowchart TD
     M -- Yes --> O[Persist pending candidate]
     O --> P[Consume one simulator-attempt unit]
     P --> Q[Execute Aerialist/PX4]
-    Q --> R{Infrastructure or execution result?}
+    Q --> R{Execution outcome}
 
     R -- System error --> S{Retry allowed and budget remains?}
     S -- Yes --> O
@@ -25,31 +25,31 @@ flowchart TD
 
     R -- Evaluated --> U[Extract trajectory, minimum distance, and mission outcome]
     U --> V[Compute official point, reward, failure_evidence, and MAP-Elites cell]
-    V --> W{Official distance failure and input compliant?}
+    V --> W{Input compliant and official distance failure?}
     W -- Yes --> X[Save YAML, ULG, overview plot, and XY-time plot]
     W -- No --> Y[Keep metadata only and delete temporary heavy files]
     X --> Z[Append result metadata]
     Y --> Z
     Z --> AA[Update MAP-Elites and backpropagate reward]
-    AA --> AB[Append history and periodically save tree/progress plots]
+    AA --> AB[Append history and periodically save tree and progress plots]
     AB --> J
 
-    J -- Yes --> AC{Confirmation reserve available and failures found?}
-    AC -- Yes --> AD[Rerun leading completed or non-completed proximity failures]
+    J -- Yes --> AC{Confirmation reserve and returnable failures available?}
+    AC -- Yes --> AD[Rerun leading failure scenarios]
     AD --> AE{Confirmation reproduces official distance failure?}
     AE -- Yes --> AF[Save separate confirmation failure artifacts]
     AE -- No --> AG[Keep confirmation metadata only]
     AF --> AH[Update point, distance, runtime, and reproducibility samples]
     AG --> AH
-    AH --> AI{Unused total budget remains?}
+    AC -- No --> AI{Unused total budget remains?}
+    AH --> AI
     AI -- Yes --> J
     AI -- No --> AJ[Build final suite]
-    AC -- No --> AJ
 
     AJ --> AK[Keep compliant artifact-backed reproducible official distance failures]
-    AK --> AL[Allow mission outcomes completed or not_completed; reject unknown]
+    AK --> AL[Allow completed or not_completed; reject unknown]
     AL --> AM[Sort by robust rank key]
     AM --> AN[Filter by obstacle distance and trajectory DTW]
-    AN --> AO[Save final tree, history, and three separate progress plots]
+    AN --> AO[Save final tree, history, and three progress plots]
     AO --> AP[Copy selected suite to best_ranked_failed_tests]
     AP --> AQ[CLI exports generated_tests using the same run id]
